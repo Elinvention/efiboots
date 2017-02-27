@@ -83,7 +83,7 @@ def entry_dialog(parent, message, title=''):
 class EFIStore(Gtk.ListStore):
 	def __init__(self):
 		Gtk.ListStore.__init__(self, str, str, bool)
-		self.regex = re.compile("^Boot([0-9]+)\* (.+)$")
+		self.regex = re.compile("^Boot([0-9]+)\*? (.+)$")
 		self.refresh()
 
 	def reorder(self):
@@ -113,7 +113,7 @@ class EFIStore(Gtk.ListStore):
 		if boot is not None:
 			for line in boot:
 				match = self.regex.match(line)
-				if match:
+				if match and match.group(1) and match.group(2):
 					num, name = match.group(1), match.group(2)
 					self.append([num, name, int(num) == self.boot_next])
 				elif line.startswith("BootOrder"):
