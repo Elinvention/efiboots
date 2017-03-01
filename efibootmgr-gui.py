@@ -58,6 +58,11 @@ def get_efibootmgr():
 	except subprocess.CalledProcessError as e:
 		print(e, file=sys.stderr)
 
+def efibootdump(var):
+	cmd = ["efibootdump", var]
+	print(*cmd)
+	return subprocess.check_output(cmd).decode('UTF-8').strip()
+
 def btn_with_icon(icon):
 	btn = Gtk.Button()
 	icon = Gio.ThemedIcon(name=icon)
@@ -88,6 +93,13 @@ def entry_dialog(parent, message, title=''):
 	dialogWindow.destroy()
 	if (response == Gtk.ResponseType.OK) and (text != ''):
 		return text
+
+def info_dialog(parent, message, title):
+	dialogWindow = Gtk.MessageDialog(parent, Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.INFO, Gtk.ButtonsType.OK, message)
+	dialogWindow.set_title(title)
+	dialogWindow.show_all()
+	dialogWindow.run()
+	dialogWindow.destroy()
 
 
 class EFIStore(Gtk.ListStore):
@@ -235,14 +247,17 @@ class EFIWindow(Gtk.Window):
 		vbox.add(hbox)
 		up = btn_with_icon("go-up-symbolic")
 		down = btn_with_icon("go-down-symbolic")
+		more = btn_with_icon("view-more-symbolic")
 		new = btn_with_icon("list-add-symbolic")
 		delete = btn_with_icon("list-remove-symbolic")
 		hbox.add(up)
 		hbox.add(down)
+		hbox.add(more)
 		hbox.add(new)
 		hbox.add(delete)
 		up.connect("button-press-event", self.up)
 		down.connect("button-press-event", self.down)
+		more.connect("button-press-event", self.more)
 		new.connect("button-press-event", self.new)
 		delete.connect("button-press-event", self.delete)
 
@@ -262,6 +277,14 @@ class EFIWindow(Gtk.Window):
 			next = self.store.iter_next(selection)
 			if next:
 				self.store.swap(selection, next)
+
+	def more(self, *args):
+		_, selection = self.tree.get_selection().get_selected()
+		if selection is not None:
+			num = self.store.get_value(selection, 0)
+			var_name = "Boot" + num
+			var = efibootdump(var_name)
+			info_dialog(self, var, var_name)
 
 	def new(self, *args):
 		label = entry_dialog(self, "Label:", "Enter Label of this new EFI entry")
