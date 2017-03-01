@@ -223,7 +223,7 @@ class EFIWindow(Gtk.Window):
 		self.set_titlebar(hb)
 
 		clear_btn = btn_with_icon("edit-clear-all-symbolic")
-		clear_btn.connect("button-press-event", self.store.refresh)
+		clear_btn.connect("button-press-event", self.discard_changes)
 		hb.pack_end(clear_btn)
 
 		write_btn = btn_with_icon("document-save-symbolic")
@@ -280,12 +280,22 @@ class EFIWindow(Gtk.Window):
 			if response == Gtk.ResponseType.YES:
 				self.store.apply_changes()
 
-	def quit(self, *args):
+	def discard_warning(self):
 		if self.store.pending_changes():
 			response = yes_no_dialog(self, "Are you sure you want to discard?", "Your changes will be lost if you don't save them.")
-			if response != Gtk.ResponseType.YES:
-				return True
-		Gtk.main_quit()
+			return response == Gtk.ResponseType.YES
+		else:
+			return True
+
+	def discard_changes(self, *args):
+		if self.discard_warning():
+			self.store.refresh()
+
+	def quit(self, *args):
+		if not self.discard_warning():
+			return True
+		else:
+			Gtk.main_quit()
 
 
 win = EFIWindow()
