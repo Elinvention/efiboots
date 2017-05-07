@@ -23,17 +23,17 @@ def efibootmgr_set_boot_next(num):
 	if num is None:
 		cmd = ["pkexec", "efibootmgr", *ESP, "--delete-bootnext"]
 	else:
-		cmd = ["pkexec", "efibootmgr", *ESP, "--bootnext", '{0:04d}'.format(num)]
+		cmd = ["pkexec", "efibootmgr", *ESP, "--bootnext", num]
 	print(*cmd)
 	return subprocess.check_output(cmd)
 
 def efibootmgr_set_boot_order(order):
-	cmd = ["pkexec", "efibootmgr", *ESP, "--bootorder", ','.join(map('{0:04d}'.format, order))]
+	cmd = ["pkexec", "efibootmgr", *ESP, "--bootorder", ','.join(order)]
 	print(*cmd)
 	return subprocess.check_output(cmd)
 
 def efibootmgr_remove(num):
-	cmd = ["pkexec", "efibootmgr", *ESP, "--delete-bootnum", "--bootnum", '{0:04d}'.format(num)]
+	cmd = ["pkexec", "efibootmgr", *ESP, "--delete-bootnum", "--bootnum", num]
 	print(*cmd)
 	return subprocess.check_output(cmd)
 
@@ -43,25 +43,20 @@ def efibootmgr_add(label, loader):
 	return subprocess.check_output(cmd)
 
 def efibootmgr_active(num):
-	cmd = ["pkexec", "efibootmgr", *ESP, "--bootnum", '{0:04d}'.format(num), "--active"]
+	cmd = ["pkexec", "efibootmgr", *ESP, "--bootnum", num, "--active"]
 	print(*cmd)
 	return subprocess.check_output(cmd)
 
 def efibootmgr_inactive(num):
-	cmd = ["pkexec", "efibootmgr", *ESP, "--bootnum", '{0:04d}'.format(num), "--inactive"]
+	cmd = ["pkexec", "efibootmgr", *ESP, "--bootnum", num, "--inactive"]
 	print(*cmd)
 	return subprocess.check_output(cmd)
 
 def get_efibootmgr():
 	try:
-		return subprocess.check_output("efibootmgr").decode('UTF-8').strip().split('\n')
+		return subprocess.check_output([ "efibootmgr", "-v" ]).decode('UTF-8').strip().split('\n')
 	except subprocess.CalledProcessError as e:
 		print(e, file=sys.stderr)
-
-def efibootdump(var):
-	cmd = ["efibootdump", var]
-	print(*cmd)
-	return subprocess.check_output(cmd).decode('UTF-8').strip()
 
 def btn_with_icon(icon):
 	btn = Gtk.Button()
@@ -104,8 +99,8 @@ def info_dialog(parent, message, title):
 
 class EFIStore(Gtk.ListStore):
 	def __init__(self):
-		Gtk.ListStore.__init__(self, str, str, bool, bool)
-		self.regex = re.compile("^Boot([0-9]+)(\*)? (.+)$")
+		Gtk.ListStore.__init__(self, str, str, str, bool, bool)
+		self.regex = re.compile("^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$")
 		self.refresh()
 
 	def reorder(self):
@@ -114,11 +109,11 @@ class EFIStore(Gtk.ListStore):
 
 	def swap(self, a, b):
 		super().swap(a, b)
-		self.boot_order = [ int(x[0]) for x in self ]
+		self.boot_order = [ x[0] for x in self ]
 
 	def index_num(self, num):
 		for i,row in enumerate(self):
-			if int(row[0]) == num:
+			if row[0] == num:
 				return i
 
 	def refresh(self, *args):
@@ -137,12 +132,12 @@ class EFIStore(Gtk.ListStore):
 			for line in boot:
 				match = self.regex.match(line)
 				if match and match.group(1) and match.group(3):
-					num, active, name = match.group(1), match.group(2), match.group(3)
-					self.append([num, name, active is not None, int(num) == self.boot_next])
+					num, active, name, loader = match.groups()
+					self.append([num, name, loader, active is not None, num == self.boot_next])
 				elif line.startswith("BootOrder"):
-					self.boot_order = self.boot_order_initial = list(map(int, line.split(':')[1].strip().split(',')))
+					self.boot_order = self.boot_order_initial = line.split(':')[1].strip().split(',')
 				elif line.startswith("BootNext"):
-					self.boot_next = self.boot_next_initial = int(line.split(':')[1].strip())
+					self.boot_next = self.boot_next_initial = line.split(':')[1].strip()
 			self.reorder()
 
 	def change_boot_next(self, widget, path):
@@ -172,13 +167,13 @@ class EFIStore(Gtk.ListStore):
 						self.boot_inactive.append(num)
 
 	def add(self, label, loader):
-		self.insert(0, ["NEW*", label, True, False])
+		self.insert(0, ["NEW*", label, loader, True, False])
 		self.boot_add.append((label, loader))
 
 	def remove(self, row_iter):
-		num = int(self.get_value(row_iter, 0))
+		num = self.get_value(row_iter, 0)
 		for row in self:
-			if int(row[0]) == num:
+			if row[0] == num:
 				self.boot_remove.append(num)
 				self.boot_order.remove(num)
 		super().remove(row_iter)
@@ -226,8 +221,9 @@ class EFIWindow(Gtk.Window):
 		renderer_radio.connect("toggled", self.store.change_boot_next)
 		self.tree.append_column(Gtk.TreeViewColumn("BootNum", renderer_text, text=0))
 		self.tree.append_column(Gtk.TreeViewColumn("Name", renderer_text, text=1))
-		self.tree.append_column(Gtk.TreeViewColumn("Active", renderer_check, active=2))
-		self.tree.append_column(Gtk.TreeViewColumn("NextBoot", renderer_radio, active=3))
+		self.tree.append_column(Gtk.TreeViewColumn("Loader", renderer_text, text=2))
+		self.tree.append_column(Gtk.TreeViewColumn("Active", renderer_check, active=3))
+		self.tree.append_column(Gtk.TreeViewColumn("NextBoot", renderer_radio, active=4))
 
 		hb = Gtk.HeaderBar()
 		hb.set_show_close_button(True)
@@ -247,17 +243,14 @@ class EFIWindow(Gtk.Window):
 		vbox.add(hbox)
 		up = btn_with_icon("go-up-symbolic")
 		down = btn_with_icon("go-down-symbolic")
-		more = btn_with_icon("view-more-symbolic")
 		new = btn_with_icon("list-add-symbolic")
 		delete = btn_with_icon("list-remove-symbolic")
 		hbox.add(up)
 		hbox.add(down)
-		hbox.add(more)
 		hbox.add(new)
 		hbox.add(delete)
 		up.connect("button-press-event", self.up)
 		down.connect("button-press-event", self.down)
-		more.connect("button-press-event", self.more)
 		new.connect("button-press-event", self.new)
 		delete.connect("button-press-event", self.delete)
 
@@ -277,14 +270,6 @@ class EFIWindow(Gtk.Window):
 			next = self.store.iter_next(selection)
 			if next:
 				self.store.swap(selection, next)
-
-	def more(self, *args):
-		_, selection = self.tree.get_selection().get_selected()
-		if selection is not None:
-			num = self.store.get_value(selection, 0)
-			var_name = "Boot" + num
-			var = efibootdump(var_name)
-			info_dialog(self, var, var_name)
 
 	def new(self, *args):
 		label = entry_dialog(self, "Label:", "Enter Label of this new EFI entry")
