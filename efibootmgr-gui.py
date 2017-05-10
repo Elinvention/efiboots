@@ -144,18 +144,18 @@ class EFIStore(Gtk.ListStore):
 		selected_path = Gtk.TreePath(path)
 		for row in self:
 			if row.path == selected_path:
-				row[3] = not row[3]
-				self.boot_next = int(row[0]) if row[3] else None
+				row[4] = not row[4]
+				self.boot_next = row[0] if row[4] else None
 			else:
-				row[3] = False
+				row[4] = False
 
 	def change_active(self, widget, path):
 		selected_path = Gtk.TreePath(path)
 		for row in self:
 			if row.path == selected_path:
-				row[2] = not row[2]
-				num = int(row[0])
-				if row[2]:
+				row[3] = not row[3]
+				num = row[0]
+				if row[3]:
 					if num in self.boot_inactive:
 						self.boot_inactive.remove(num)
 					else:
