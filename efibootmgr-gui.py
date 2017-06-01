@@ -6,57 +6,9 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gio
 import subprocess
 import re
+import efibootmgr
 
-def find_esp():
-	# findmnt --noheadings --output SOURCE --target /boot/efi
-	try:
-		res = subprocess.check_output(["findmnt", "--noheadings", "--output", "SOURCE", "--target", "/boot/efi"]).decode('UTF-8').strip()
-	except subprocess.CalledProcessError as e:
-		print("Please mount ESP to /boot/efi", sep='\n', file=sys.stderr)
-		sys.exit()
-	return res[:-1], res[-1:]
 
-ESP_DISK, ESP_PART = find_esp()
-ESP = ("--disk", ESP_DISK, "--part", ESP_PART)
-
-def efibootmgr_set_boot_next(num):
-	if num is None:
-		cmd = ["pkexec", "efibootmgr", *ESP, "--delete-bootnext"]
-	else:
-		cmd = ["pkexec", "efibootmgr", *ESP, "--bootnext", num]
-	print(*cmd)
-	return subprocess.check_output(cmd)
-
-def efibootmgr_set_boot_order(order):
-	cmd = ["pkexec", "efibootmgr", *ESP, "--bootorder", ','.join(order)]
-	print(*cmd)
-	return subprocess.check_output(cmd)
-
-def efibootmgr_remove(num):
-	cmd = ["pkexec", "efibootmgr", *ESP, "--delete-bootnum", "--bootnum", num]
-	print(*cmd)
-	return subprocess.check_output(cmd)
-
-def efibootmgr_add(label, loader):
-	cmd = ["pkexec", "efibootmgr", *ESP, "--create", "--label", label, "--loader", loader]
-	print(*cmd)
-	return subprocess.check_output(cmd)
-
-def efibootmgr_active(num):
-	cmd = ["pkexec", "efibootmgr", *ESP, "--bootnum", num, "--active"]
-	print(*cmd)
-	return subprocess.check_output(cmd)
-
-def efibootmgr_inactive(num):
-	cmd = ["pkexec", "efibootmgr", *ESP, "--bootnum", num, "--inactive"]
-	print(*cmd)
-	return subprocess.check_output(cmd)
-
-def get_efibootmgr():
-	try:
-		return subprocess.check_output([ "efibootmgr", "-v" ]).decode('UTF-8').strip().split('\n')
-	except subprocess.CalledProcessError as e:
-		print(e, file=sys.stderr)
 
 def btn_with_icon(icon):
 	btn = Gtk.Button()
@@ -73,32 +25,44 @@ def yes_no_dialog(parent, primary, secondary):
 	return response
 
 def entry_dialog(parent, message, title=''):
-	dialogWindow = Gtk.MessageDialog(parent, Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.QUESTION, Gtk.ButtonsType.OK_CANCEL, message)
+	dialog = Gtk.MessageDialog(parent,
+			Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+			Gtk.MessageType.QUESTION, Gtk.ButtonsType.OK_CANCEL, message)
 
-	dialogWindow.set_title(title)
+	dialog.set_title(title)
 
-	dialogBox = dialogWindow.get_content_area()
+	dialogBox = dialog.get_content_area()
 	userEntry = Gtk.Entry()
 	userEntry.set_size_request(250,0)
 	dialogBox.pack_end(userEntry, False, False, 0)
 
-	dialogWindow.show_all()
-	response = dialogWindow.run()
+	dialog.show_all()
+	response = dialog.run()
 	text = userEntry.get_text() 
-	dialogWindow.destroy()
+	dialog.destroy()
 	if (response == Gtk.ResponseType.OK) and (text != ''):
 		return text
 
 def info_dialog(parent, message, title):
-	dialogWindow = Gtk.MessageDialog(parent, Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.INFO, Gtk.ButtonsType.OK, message)
-	dialogWindow.set_title(title)
-	dialogWindow.show_all()
-	dialogWindow.run()
-	dialogWindow.destroy()
+	dialog = Gtk.MessageDialog(parent, Gtk.DialogFlags.DESTROY_WITH_PARENT,
+			Gtk.MessageType.INFO, Gtk.ButtonsType.OK, message)
+	dialog.set_title(title)
+	dialog.show_all()
+	dialog.run()
+	dialog.destroy()
+
+def error_dialog(parent, message, title):
+	dialog = Gtk.MessageDialog(parent, Gtk.DialogFlags.DESTROY_WITH_PARENT,
+			Gtk.MessageType.ERROR, Gtk.ButtonsType.CANCEL, title)
+	dialog.format_secondary_text(message)
+	dialog.show_all()
+	dialog.run()
+	dialog.destroy()
 
 
 class EFIStore(Gtk.ListStore):
-	def __init__(self):
+	def __init__(self, window):
+		self.window = window
 		Gtk.ListStore.__init__(self, str, str, str, bool, bool)
 		self.regex = re.compile("^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$")
 		self.refresh()
@@ -127,7 +91,7 @@ class EFIStore(Gtk.ListStore):
 		self.boot_add = []
 		self.boot_remove = []
 
-		boot = get_efibootmgr()
+		boot = efibootmgr.output()
 		if boot is not None:
 			for line in boot:
 				match = self.regex.match(line)
@@ -139,6 +103,9 @@ class EFIStore(Gtk.ListStore):
 				elif line.startswith("BootNext"):
 					self.boot_next = self.boot_next_initial = line.split(':')[1].strip()
 			self.reorder()
+		else:
+			error_dialog(self.window, "Please verify that efibootmgr is installed", "Error")
+			sys.exit(-1)
 
 	def change_boot_next(self, widget, path):
 		selected_path = Gtk.TreePath(path)
@@ -181,19 +148,19 @@ class EFIStore(Gtk.ListStore):
 	def apply_changes(self):
 		try:
 			for entry in self.boot_remove:
-				efibootmgr_remove(entry)
+				efibootmgr.remove(entry)
 			for entry in self.boot_add:
-				efibootmgr_add(*entry)
+				efibootmgr.add(*entry)
 			if self.boot_order != self.boot_order_initial:
-				efibootmgr_set_boot_order(self.boot_order)
+				efibootmgr.set_boot_order(self.boot_order)
 			if self.boot_next_initial != self.boot_next:
-				efibootmgr_set_boot_next(self.boot_next)
+				efibootmgr.set_boot_next(self.boot_next)
 			for entry in self.boot_active:
-				efibootmgr_active(entry)
+				efibootmgr.active(entry)
 			for entry in self.boot_inactive:
-				efibootmgr_inactive(entry)
+				efibootmgr.inactive(entry)
 		except subprocess.CalledProcessError as e:
-			print(e, file=sys.stderr)
+			error_dialog(self.window, str(e), "Error")
 		self.refresh()
 
 	def pending_changes(self):
@@ -210,8 +177,8 @@ class EFIWindow(Gtk.Window):
 		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
 		self.add(vbox)
 
-		self.store = EFIStore()
-		self.tree = Gtk.TreeView(self.store)
+		self.store = EFIStore(self)
+		self.tree = Gtk.TreeView(self.store, vexpand=True)
 		vbox.add(self.tree)
 
 		renderer_text = Gtk.CellRendererText()
@@ -224,6 +191,9 @@ class EFIWindow(Gtk.Window):
 		self.tree.append_column(Gtk.TreeViewColumn("Loader", renderer_text, text=2))
 		self.tree.append_column(Gtk.TreeViewColumn("Active", renderer_check, active=3))
 		self.tree.append_column(Gtk.TreeViewColumn("NextBoot", renderer_radio, active=4))
+		for column in self.tree.get_columns():
+			column.set_resizable(True)
+			column.set_min_width(75)
 
 		hb = Gtk.HeaderBar()
 		hb.set_show_close_button(True)
