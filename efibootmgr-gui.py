@@ -201,24 +201,34 @@ class EFIWindow(Gtk.Window):
 		self.set_titlebar(hb)
 
 		clear_btn = btn_with_icon("edit-clear-all-symbolic")
+		clear_btn.set_tooltip_text("clear all")
 		clear_btn.connect("button-press-event", self.discard_changes)
 		hb.pack_end(clear_btn)
 
 		write_btn = btn_with_icon("document-save-symbolic")
 		write_btn.connect("button-press-event", self.apply_changes)
+		write_btn.set_tooltip_text("save")
 		hb.pack_end(write_btn)
 
 		hbox = Gtk.HButtonBox()
 		hbox.set_layout(Gtk.ButtonBoxStyle.EXPAND)
 		vbox.add(hbox)
+
 		up = btn_with_icon("go-up-symbolic")
 		down = btn_with_icon("go-down-symbolic")
 		new = btn_with_icon("list-add-symbolic")
 		delete = btn_with_icon("list-remove-symbolic")
+
+		up.set_tooltip_text("move up")
+		down.set_tooltip_text("move down")
+		new.set_tooltip_text("create new entry")
+		delete.set_tooltip_text("delete entry")
+
 		hbox.add(up)
 		hbox.add(down)
 		hbox.add(new)
 		hbox.add(delete)
+
 		up.connect("button-press-event", self.up)
 		down.connect("button-press-event", self.down)
 		new.connect("button-press-event", self.new)
