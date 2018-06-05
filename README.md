@@ -12,10 +12,13 @@ sudo apt install efibootmgr python3
 
 ## Usage
 
-Simply run efibootmgr-gui.py and enjoy.
+```
+python3 efibootmgr-gui.py
+# that should be the same as
+./efibootmgr-gui.py
+```
 
-Note: You can use --efi=/dev/sd?? (e.g. sda1) to manually specify your efi partition
-
-Note: This program assumes that the EFI System Partition (ESP) is mounted on
-`/boot/efi`.
-
+**Note**: This program assumes that the EFI System Partition (ESP) is mounted at
+`/boot/efi`.  
+However you can use --efi=/dev/sd?? (e.g. sda1) to manually specify your
+EFI System Partition (ESP).
