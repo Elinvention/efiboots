@@ -2,14 +2,18 @@ import subprocess
 import sys
 
 def find_esp():
-	# findmnt --noheadings --output SOURCE --target /boot/efi
-	cmd = ["findmnt", "--noheadings", "--output", "SOURCE", "--target", "/boot/efi"]
-	print(*cmd)
-	try:
-		res = subprocess.check_output(cmd).decode('UTF-8').strip()
-	except subprocess.CalledProcessError as e:
-		print("Please mount ESP to /boot/efi", sep='\n', file=sys.stderr)
-		return
+	custom_efi = [ arg.split("--efi=")[1] for arg in sys.argv[1:] if arg.startswith("--efi=") ]
+	if len(custom_efi) > 0:
+		res = custom_efi[0]
+	else:	
+		# findmnt --noheadings --output SOURCE --target /boot/efi
+		cmd = ["findmnt", "--noheadings", "--output", "SOURCE", "--target", "/boot/efi"]
+		print(*cmd)
+		try:
+			res = subprocess.check_output(cmd).decode('UTF-8').strip()
+		except subprocess.CalledProcessError as e:
+			print("Please mount ESP to /boot/efi", sep='\n', file=sys.stderr)
+			return
 	print(res)
 	return res[:-1], res[-1:]
 
