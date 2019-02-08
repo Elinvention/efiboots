@@ -6,9 +6,33 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gio
 import subprocess
 import re
-import efibootmgr
 
 
+def find_esp():
+	custom_efi = [ arg.split("--efi=")[1] for arg in sys.argv[1:] if arg.startswith("--efi=") ]
+	if len(custom_efi) > 0:
+		res = custom_efi[0]
+	else:
+		# findmnt --noheadings --output SOURCE --target /boot/efi
+		cmd = ["findmnt", "--noheadings", "--output", "SOURCE", "--target", "/boot/efi"]
+		print(*cmd)
+		try:
+			res = subprocess.check_output(cmd).decode('UTF-8').strip()
+		except subprocess.CalledProcessError as e:
+			print("Please mount ESP to /boot/efi", sep='\n', file=sys.stderr)
+			return
+	print(res)
+	return res[:-1], res[-1:]
+
+
+esp = "--disk %s --part %s" % find_esp()
+
+
+def run_efibootmgr():
+	try:
+		return subprocess.check_output([ "efibootmgr", "-v" ]).decode('UTF-8').strip().split('\n')
+	except subprocess.CalledProcessError as e:
+		print(e, file=sys.stderr)
 
 def btn_with_icon(icon):
 	btn = Gtk.Button()
@@ -92,7 +116,7 @@ class EFIStore(Gtk.ListStore):
 		self.boot_add = []
 		self.boot_remove = []
 
-		boot = efibootmgr.output()
+		boot = run_efibootmgr()
 		if boot is not None:
 			for line in boot:
 				match = self.regex.match(line)
@@ -148,18 +172,7 @@ class EFIStore(Gtk.ListStore):
 
 	def apply_changes(self):
 		try:
-			for entry in self.boot_remove:
-				efibootmgr.remove(entry)
-			for entry in self.boot_add:
-				efibootmgr.add(*entry)
-			if self.boot_order != self.boot_order_initial:
-				efibootmgr.set_boot_order(self.boot_order)
-			if self.boot_next_initial != self.boot_next:
-				efibootmgr.set_boot_next(self.boot_next)
-			for entry in self.boot_active:
-				efibootmgr.active(entry)
-			for entry in self.boot_inactive:
-				efibootmgr.inactive(entry)
+			subprocess.check_output(["pkexec", "sh", "-c", str(self)])
 		except subprocess.CalledProcessError as e:
 			error_dialog(self.window, str(e), "Error")
 		self.refresh()
@@ -168,6 +181,25 @@ class EFIStore(Gtk.ListStore):
 		return (self.boot_next_initial != self.boot_next or
 				self.boot_order_initial != self.boot_order or self.boot_add or
 				self.boot_remove or self.boot_active or self.boot_inactive)
+
+	def __str__(self):
+		str = ''
+		for entry in self.boot_remove:
+			str += "efibootmgr %s --delete-bootnum --bootnum %s\n" % (esp, entry)
+		for label, loader in self.boot_add:
+			str += "efibootmgr %s --create --label %s --loader %s\n" % (esp, label, loader)
+		if self.boot_order != self.boot_order_initial:
+			str += "efibootmgr %s --bootorder %s\n" % (esp, ','.join(self.boot_order))
+		if self.boot_next_initial != self.boot_next:
+			if self.boot_next is None:
+				str += "efibootmgr %s --delete-bootnext\n" % esp
+			else:
+				str += "efibootmgr %s --bootnext %s\n" % (esp, self.boot_next)
+		for entry in self.boot_active:
+			str += "efibootmgr %s --bootnum %s --active\n" % (esp, entry)
+		for entry in self.boot_inactive:
+			str += "efibootmgr %s --bootnum %s --inactive\n" % (esp, entry)
+		return str
 
 
 class EFIWindow(Gtk.Window):
@@ -265,7 +297,8 @@ class EFIWindow(Gtk.Window):
 
 	def apply_changes(self, *args):
 		if self.store.pending_changes():
-			response = yes_no_dialog(self, "Are you sure you want to continue?", "Your changes are about to be written to EFI's NVRAM.")
+			response = yes_no_dialog(self, "Are you sure you want to continue?",
+							"Your changes are about to be written to EFI NVRAM.\nThe following commands will be run:\n" + str(self.store))
 			if response == Gtk.ResponseType.YES:
 				self.store.apply_changes()
 
