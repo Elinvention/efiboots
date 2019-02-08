@@ -18,7 +18,8 @@ def btn_with_icon(icon):
 	return btn
 
 def yes_no_dialog(parent, primary, secondary):
-	dialog = Gtk.MessageDialog(parent, 0, Gtk.MessageType.QUESTION, Gtk.ButtonsType.YES_NO, primary)
+	dialog = Gtk.MessageDialog(parent=parent, flags=0, message_type=Gtk.MessageType.QUESTION,
+							buttons=Gtk.ButtonsType.YES_NO, text=primary)
 	dialog.format_secondary_text(secondary)
 	response = dialog.run()
 	dialog.destroy()
@@ -52,8 +53,8 @@ def info_dialog(parent, message, title):
 	dialog.destroy()
 
 def error_dialog(parent, message, title):
-	dialog = Gtk.MessageDialog(parent, Gtk.DialogFlags.DESTROY_WITH_PARENT,
-			Gtk.MessageType.ERROR, Gtk.ButtonsType.CANCEL, title)
+	dialog = Gtk.MessageDialog(parent=parent, flags=Gtk.DialogFlags.DESTROY_WITH_PARENT,
+			message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CANCEL, text=title)
 	dialog.format_secondary_text(message)
 	dialog.show_all()
 	dialog.run()
@@ -178,7 +179,7 @@ class EFIWindow(Gtk.Window):
 		self.add(vbox)
 
 		self.store = EFIStore(self)
-		self.tree = Gtk.TreeView(self.store, vexpand=True)
+		self.tree = Gtk.TreeView(model=self.store, vexpand=True)
 		vbox.add(self.tree)
 
 		renderer_text = Gtk.CellRendererText()
