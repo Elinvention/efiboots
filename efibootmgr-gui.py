@@ -94,7 +94,12 @@ class EFIStore(Gtk.ListStore):
 
 	def reorder(self):
 		if self.boot_order:
-			super().reorder([ self.index_num(v) for v in self.boot_order ])
+			items = [ self.index_num(v) for v in self.boot_order ]
+			for i, row in enumerate(self):
+				if not items.__contains__(i):
+					items.append(i)
+
+			super().reorder(items)
 
 	def swap(self, a, b):
 		super().swap(a, b)
