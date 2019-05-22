@@ -350,8 +350,14 @@ class EFIWindow(Gtk.Window):
 			Gtk.main_quit()
 
 
-logging.basicConfig(level=0)
-win = EFIWindow()
-win.show_all()
-Gtk.main()
+def main():
+	win = EFIWindow()
+	win.show_all()
+	Gtk.main()
+
+
+
+if __name__ == '__main__':
+	logging.basicConfig(level=0)
+	main()
 
