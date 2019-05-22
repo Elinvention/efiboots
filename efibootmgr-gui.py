@@ -96,13 +96,25 @@ class EFIStore(Gtk.ListStore):
 		self.refresh()
 
 	def reorder(self):
-		if self.boot_order:
-			items = [ self.index_num(v) for v in self.boot_order ]
-			for i, row in enumerate(self):
-				if not items.__contains__(i):
-					items.append(i)
+		reorder_logger = logging.getLogger("reorder")
+		new_order = []
 
-			super().reorder(items)
+		for bootnum in self.boot_order:
+			index = self.index_num(bootnum)
+			if index is None:
+				reorder_logger.warning('%s is in BootOrder, but it\'s not in the list', bootnum)
+			else:
+				new_order.append(index)
+
+		for i,row in enumerate(self):
+			if i not in new_order:
+				reorder_logger.warning('%s is not in BootOrder, appending to the list', row[0])
+				new_order.append(i)
+
+		reorder_logger.debug("New order is: %s", new_order)
+
+		assert(len(new_order) == len(self))
+		super().reorder(new_order)
 
 	def swap(self, a, b):
 		super().swap(a, b)
