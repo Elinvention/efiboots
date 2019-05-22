@@ -215,20 +215,20 @@ class EFIStore(Gtk.ListStore):
 	def __str__(self):
 		str = ''
 		for entry in self.boot_remove:
-			str += "efibootmgr %s --delete-bootnum --bootnum %s\n" % (esp, entry)
+			str += f'efibootmgr {esp} --delete-bootnum --bootnum {entry}\n'
 		for label, loader in self.boot_add:
-			str += "efibootmgr %s --create --label %s --loader %s\n" % (esp, label, loader)
+			str += f'efibootmgr {esp} --create --label {label} --loader {loader}\n'
 		if self.boot_order != self.boot_order_initial:
-			str += "efibootmgr %s --bootorder %s\n" % (esp, ','.join(self.boot_order))
+			str += f'efibootmgr {esp} --bootorder {",".join(self.boot_order)}\n'
 		if self.boot_next_initial != self.boot_next:
 			if self.boot_next is None:
-				str += "efibootmgr %s --delete-bootnext\n" % esp
+				str += f'efibootmgr {esp} --delete-bootnext\n'
 			else:
-				str += "efibootmgr %s --bootnext %s\n" % (esp, self.boot_next)
+				str += f'efibootmgr {esp} --bootnext {self.boot_next}\n'
 		for entry in self.boot_active:
-			str += "efibootmgr %s --bootnum %s --active\n" % (esp, entry)
+			str += f'efibootmgr {esp} --bootnum {entry} --active\n'
 		for entry in self.boot_inactive:
-			str += "efibootmgr %s --bootnum %s --inactive\n" % (esp, entry)
+			str += f'efibootmgr {esp} --bootnum {entry} --inactive\n'
 		return str
 
 
