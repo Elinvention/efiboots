@@ -6,6 +6,7 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gio
 import subprocess
 import re
+import logging
 
 
 def find_esp():
@@ -18,7 +19,7 @@ def find_esp():
 		print(*cmd)
 		try:
 			res = subprocess.check_output(cmd).decode('UTF-8').strip()
-		except subprocess.CalledProcessError as e:
+		except subprocess.CalledProcessError:
 			print("Please mount ESP to /boot/efi", sep='\n', file=sys.stderr)
 			return
 	print(res)
@@ -30,7 +31,9 @@ esp = "--disk %s --part %s" % find_esp()
 
 def run_efibootmgr():
 	try:
-		return subprocess.check_output([ "efibootmgr", "-v" ]).decode('UTF-8').strip().split('\n')
+		output = subprocess.check_output([ "efibootmgr", "-v" ]).decode('UTF-8').strip().split('\n')
+		logging.debug(repr(output))
+		return output
 	except subprocess.CalledProcessError as e:
 		print(e, file=sys.stderr)
 
@@ -121,17 +124,24 @@ class EFIStore(Gtk.ListStore):
 		self.boot_add = []
 		self.boot_remove = []
 
+		parser_logger = logging.getLogger("parser")
 		boot = run_efibootmgr()
 		if boot is not None:
 			for line in boot:
 				match = self.regex.match(line)
 				if match and match.group(1) and match.group(3):
 					num, active, name, loader = match.groups()
-					self.append([num, name, loader, active is not None, num == self.boot_next])
+					parsed = [num, name, loader, active is not None, num == self.boot_next]
+					self.append(parsed)
+					parser_logger.debug("Entry: %s", parsed)
 				elif line.startswith("BootOrder"):
 					self.boot_order = self.boot_order_initial = line.split(':')[1].strip().split(',')
+					parser_logger.debug("BootOrder: %s", self.boot_order)
 				elif line.startswith("BootNext"):
 					self.boot_next = self.boot_next_initial = line.split(':')[1].strip()
+					parser_logger.debug("BootNext: %s", self.boot_next)
+				else:
+					parser_logger.warning("line didn't match: %s", repr(line))
 			self.reorder()
 		else:
 			error_dialog(self.window, "Please verify that efibootmgr is installed", "Error")
@@ -325,6 +335,7 @@ class EFIWindow(Gtk.Window):
 			Gtk.main_quit()
 
 
+logging.basicConfig(level=0)
 win = EFIWindow()
 win.show_all()
 Gtk.main()
