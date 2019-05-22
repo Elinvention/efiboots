@@ -82,6 +82,9 @@ def info_dialog(parent, message, title):
 def error_dialog(parent, message, title):
 	dialog = Gtk.MessageDialog(parent=parent, flags=Gtk.DialogFlags.DESTROY_WITH_PARENT,
 			message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CANCEL, text=title)
+	area = dialog.get_message_area()
+	for child in area.get_children():
+		child.set_selectable(True)
 	dialog.format_secondary_text(message)
 	dialog.show_all()
 	dialog.run()
