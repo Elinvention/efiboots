@@ -217,7 +217,7 @@ class EFIStore(Gtk.ListStore):
 		for entry in self.boot_remove:
 			str += f'efibootmgr {esp} --delete-bootnum --bootnum {entry}\n'
 		for label, loader in self.boot_add:
-			str += f'efibootmgr {esp} --create --label {label} --loader {loader}\n'
+			str += f'efibootmgr {esp} --create --label \'{label}\' --loader \'{loader}\'\n'
 		if self.boot_order != self.boot_order_initial:
 			str += f'efibootmgr {esp} --bootorder {",".join(self.boot_order)}\n'
 		if self.boot_next_initial != self.boot_next:
