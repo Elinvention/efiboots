@@ -1,0 +1,10 @@
+BootCurrent: 000A
+Timeout: 1 seconds
+BootOrder: 0001,0007,0003,0005,0000,0002,0004
+Boot0000* SATA1 : Samsung SSD 850 PRO 25	BBS(17,,0x0)
+Boot0001* rEFInd Boot Manager	HD(1,GPT,fda4f976-b250-4569-be80-0449804ab7c2,0x800,0x40000)/File(\EFI\refind\refind_x64.efi)
+Boot0002* Mass Storage Device 	BBS(18,,0x0)
+Boot0003* Windows Boot Manager	HD(1,GPT,fda4f976-b250-4569-be80-0449804ab7c2,0x800,0x40000)/File(\EFI\Microsoft\Boot\bootmgfw.efi)WINDOWS.........x...B.C.D.O.B.J.E.C.T.=.{.9.d.e.a.8.6.2.c.-.5.c.d.d.-.4.e.7.0.-.a.c.c.1.-.f.3.2.b.3.4.4.d.4.7.9.5.}...o................
+Boot0004  UEFI: Built-in EFI Shell 	VenMedia(5023b95c-db26-429b-a648-bd47664c8012)AMBO
+Boot0005* UEFI OS	HD(1,GPT,fda4f976-b250-4569-be80-0449804ab7c2,0x800,0x40000)/File(\EFI\BOOT\BOOTX64.EFI)
+Boot0007* Manjaro	HD(1,GPT,fda4f976-b250-4569-be80-0449804ab7c2,0x800,0x40000)/File(\EFI\Manjaro\grubx64.efi)
