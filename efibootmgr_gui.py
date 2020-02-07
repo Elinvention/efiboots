@@ -104,7 +104,7 @@ class EFIStore(Gtk.ListStore):
 		self.window = window
 		Gtk.ListStore.__init__(self, bool, str, str, str, bool, bool)
 		self.regex = re.compile("^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$")
-		self.refresh()
+		self.clear()
 
 	def reorder(self):
 		reorder_logger = logging.getLogger("reorder")
@@ -135,9 +135,8 @@ class EFIStore(Gtk.ListStore):
 		for i,row in enumerate(self):
 			if row[EFIStore.ROW_NUM] == num:
 				return i
-
-	def refresh(self, *args):
-		self.clear()
+	def clear(self):
+		super().clear()
 		self.boot_order = []
 		self.boot_order_initial = []
 		self.boot_next = None
@@ -147,6 +146,9 @@ class EFIStore(Gtk.ListStore):
 		self.boot_add = []
 		self.boot_remove = []
 		self.boot_current = None
+
+	def refresh(self, *args):
+		self.clear()
 
 		parser_logger = logging.getLogger("parser")
 		boot = run_efibootmgr()
@@ -167,6 +169,10 @@ class EFIStore(Gtk.ListStore):
 				elif line.startswith("BootCurrent"):
 					self.boot_current = line.split(':')[1].strip()
 					parser_logger.debug("BootCurrent: %s", self.boot_current)
+				elif line.startswith("Timeout"):
+					self.timeout = self.timeout_initial = int(line.split(':')[1].split()[0].strip())
+					self.window.timeout_spin.set_value(self.timeout)
+					parser_logger.debug("Timeout: %s", self.timeout)
 				else:
 					parser_logger.warning("line didn't match: %s", repr(line))
 			self.reorder()
@@ -200,6 +206,9 @@ class EFIStore(Gtk.ListStore):
 					else:
 						self.boot_inactive.append(num)
 
+	def change_timeout(self, timeout_spin):
+		self.timeout = timeout_spin.get_value_as_int()
+
 	def add(self, label, loader):
 		self.insert(0, [False, "NEW*", label, loader, True, False])
 		self.boot_add.append((label, loader))
@@ -222,7 +231,9 @@ class EFIStore(Gtk.ListStore):
 	def pending_changes(self):
 		return (self.boot_next_initial != self.boot_next or
 				self.boot_order_initial != self.boot_order or self.boot_add or
-				self.boot_remove or self.boot_active or self.boot_inactive)
+				self.boot_remove or self.boot_active or self.boot_inactive
+				or self.timeout != self.timeout_initial
+			)
 
 	def __str__(self):
 		str = ''
@@ -241,6 +252,8 @@ class EFIStore(Gtk.ListStore):
 			str += f'efibootmgr {esp} --bootnum {entry} --active\n'
 		for entry in self.boot_inactive:
 			str += f'efibootmgr {esp} --bootnum {entry} --inactive\n'
+		if self.timeout != self.timeout_initial:
+			str += f'efibootmgr {esp} --timeout {self.timeout}\n'
 		return str
 
 
@@ -249,7 +262,7 @@ class EFIWindow(Gtk.Window):
 		Gtk.Window.__init__(self, title="EFI boot manager")
 		self.set_border_width(10)
 
-		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
 		self.add(vbox)
 
 		self.store = EFIStore(self)
@@ -311,8 +324,16 @@ class EFIWindow(Gtk.Window):
 		new.connect("button-press-event", self.new)
 		delete.connect("button-press-event", self.delete)
 
+		tbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+		tbox.add(Gtk.Label("Boot manager timeout in seconds:"))
+		self.timeout_spin = Gtk.SpinButton.new_with_range(0, 999, 1)
+		self.timeout_spin.connect('value_changed', self.store.change_timeout)
+		tbox.add(self.timeout_spin)
+		vbox.add(tbox)
+
 		self.connect("delete-event", self.quit)
 		self.set_default_size(300, 260)
+		self.store.refresh()
 
 	def up(self, *args):
 		_, selection = self.tree.get_selection().get_selected()
