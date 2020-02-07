@@ -94,9 +94,15 @@ def error_dialog(parent, message, title):
 
 
 class EFIStore(Gtk.ListStore):
+	ROW_CURRENT = 0
+	ROW_NUM = 1
+	ROW_NAME = 2
+	ROW_LOADER = 3
+	ROW_ACTIVE = 4
+	ROW_NEXT = 5
 	def __init__(self, window):
 		self.window = window
-		Gtk.ListStore.__init__(self, str, str, str, bool, bool)
+		Gtk.ListStore.__init__(self, bool, str, str, str, bool, bool)
 		self.regex = re.compile("^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$")
 		self.refresh()
 
@@ -113,7 +119,7 @@ class EFIStore(Gtk.ListStore):
 
 		for i,row in enumerate(self):
 			if i not in new_order:
-				reorder_logger.warning('%s is not in BootOrder, appending to the list', row[0])
+				reorder_logger.warning('%s is not in BootOrder, appending to the list', row[EFIStore.ROW_NUM])
 				new_order.append(i)
 
 		reorder_logger.debug("New order is: %s", new_order)
@@ -123,11 +129,11 @@ class EFIStore(Gtk.ListStore):
 
 	def swap(self, a, b):
 		super().swap(a, b)
-		self.boot_order = [ x[0] for x in self ]
+		self.boot_order = [ x[EFIStore.ROW_NUM] for x in self ]
 
 	def index_num(self, num):
 		for i,row in enumerate(self):
-			if row[0] == num:
+			if row[EFIStore.ROW_NUM] == num:
 				return i
 
 	def refresh(self, *args):
@@ -140,6 +146,7 @@ class EFIStore(Gtk.ListStore):
 		self.boot_inactive = []
 		self.boot_add = []
 		self.boot_remove = []
+		self.boot_current = None
 
 		parser_logger = logging.getLogger("parser")
 		boot = run_efibootmgr()
@@ -148,15 +155,18 @@ class EFIStore(Gtk.ListStore):
 				match = self.regex.match(line)
 				if match and match.group(1) and match.group(3):
 					num, active, name, loader = match.groups()
-					parsed = [num, name, loader, active is not None, num == self.boot_next]
-					self.append(parsed)
+					parsed = [num == self.boot_current, num, name, loader, active is not None, num == self.boot_next]
 					parser_logger.debug("Entry: %s", parsed)
+					self.append(parsed)
 				elif line.startswith("BootOrder"):
 					self.boot_order = self.boot_order_initial = line.split(':')[1].strip().split(',')
 					parser_logger.debug("BootOrder: %s", self.boot_order)
 				elif line.startswith("BootNext"):
 					self.boot_next = self.boot_next_initial = line.split(':')[1].strip()
 					parser_logger.debug("BootNext: %s", self.boot_next)
+				elif line.startswith("BootCurrent"):
+					self.boot_current = line.split(':')[1].strip()
+					parser_logger.debug("BootCurrent: %s", self.boot_current)
 				else:
 					parser_logger.warning("line didn't match: %s", repr(line))
 			self.reorder()
@@ -168,18 +178,18 @@ class EFIStore(Gtk.ListStore):
 		selected_path = Gtk.TreePath(path)
 		for row in self:
 			if row.path == selected_path:
-				row[4] = not row[4]
-				self.boot_next = row[0] if row[4] else None
+				row[EFIStore.ROW_NEXT] = not row[EFIStore.ROW_NEXT]
+				self.boot_next = row[EFIStore.ROW_NUM] if row[EFIStore.ROW_NEXT] else None
 			else:
-				row[4] = False
+				row[EFIStore.ROW_NEXT] = False
 
 	def change_active(self, widget, path):
 		selected_path = Gtk.TreePath(path)
 		for row in self:
 			if row.path == selected_path:
-				row[3] = not row[3]
-				num = row[0]
-				if row[3]:
+				row[EFIStore.ROW_ACTIVE] = not row[EFIStore.ROW_ACTIVE]
+				num = row[EFIStore.ROW_NUM]
+				if row[EFIStore.ROW_ACTIVE]:
 					if num in self.boot_inactive:
 						self.boot_inactive.remove(num)
 					else:
@@ -191,13 +201,13 @@ class EFIStore(Gtk.ListStore):
 						self.boot_inactive.append(num)
 
 	def add(self, label, loader):
-		self.insert(0, ["NEW*", label, loader, True, False])
+		self.insert(0, [False, "NEW*", label, loader, True, False])
 		self.boot_add.append((label, loader))
 
 	def remove(self, row_iter):
 		num = self.get_value(row_iter, 0)
 		for row in self:
-			if row[0] == num:
+			if row[EFIStore.ROW_NUM] == num:
 				self.boot_remove.append(num)
 				self.boot_order.remove(num)
 		super().remove(row_iter)
@@ -249,13 +259,15 @@ class EFIWindow(Gtk.Window):
 		renderer_text = Gtk.CellRendererText()
 		renderer_check = Gtk.CellRendererToggle(radio=False)
 		renderer_radio = Gtk.CellRendererToggle(radio=True)
+		renderer_boot_current = Gtk.CellRendererToggle(radio=True, activatable=False)
 		renderer_check.connect("toggled", self.store.change_active)
 		renderer_radio.connect("toggled", self.store.change_boot_next)
-		self.tree.append_column(Gtk.TreeViewColumn("BootNum", renderer_text, text=0))
-		self.tree.append_column(Gtk.TreeViewColumn("Name", renderer_text, text=1))
-		self.tree.append_column(Gtk.TreeViewColumn("Loader", renderer_text, text=2))
-		self.tree.append_column(Gtk.TreeViewColumn("Active", renderer_check, active=3))
-		self.tree.append_column(Gtk.TreeViewColumn("NextBoot", renderer_radio, active=4))
+		self.tree.append_column(Gtk.TreeViewColumn("BootCurrent", renderer_boot_current, active=0))
+		self.tree.append_column(Gtk.TreeViewColumn("BootNum", renderer_text, text=1))
+		self.tree.append_column(Gtk.TreeViewColumn("Name", renderer_text, text=2))
+		self.tree.append_column(Gtk.TreeViewColumn("Loader", renderer_text, text=3))
+		self.tree.append_column(Gtk.TreeViewColumn("Active", renderer_check, active=4))
+		self.tree.append_column(Gtk.TreeViewColumn("NextBoot", renderer_radio, active=5))
 		for column in self.tree.get_columns():
 			column.set_resizable(True)
 			column.set_min_width(75)
