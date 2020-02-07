@@ -16,17 +16,14 @@ def find_esp():
 	else:
 		# findmnt --noheadings --output SOURCE --target /boot/efi
 		cmd = ["findmnt", "--noheadings", "--output", "SOURCE", "--target", "/boot/efi"]
-		print(*cmd)
+		logging.debug(cmd)
 		try:
 			res = subprocess.check_output(cmd).decode('UTF-8').strip()
 		except subprocess.CalledProcessError:
-			print("Please mount ESP to /boot/efi", sep='\n', file=sys.stderr)
+			logging.exception("Please mount ESP to /boot/efi", sep='\n', file=sys.stderr)
 			return
-	print(res)
+	logging.info("ESP partition detected on %s", res)
 	return res[:-1], res[-1:]
-
-
-esp = "--disk %s --part %s" % find_esp()
 
 
 def run_efibootmgr():
@@ -35,7 +32,8 @@ def run_efibootmgr():
 		logging.debug(repr(output))
 		return output
 	except subprocess.CalledProcessError as e:
-		print(e, file=sys.stderr)
+		logging.exception("Error running efibootmgr. Check if it is installed!")
+
 
 def btn_with_icon(icon):
 	btn = Gtk.Button()
@@ -44,6 +42,7 @@ def btn_with_icon(icon):
 	btn.add(image)
 	return btn
 
+
 def yes_no_dialog(parent, primary, secondary):
 	dialog = Gtk.MessageDialog(parent=parent, flags=0, message_type=Gtk.MessageType.QUESTION,
 							buttons=Gtk.ButtonsType.YES_NO, text=primary)
@@ -51,6 +50,7 @@ def yes_no_dialog(parent, primary, secondary):
 	response = dialog.run()
 	dialog.destroy()
 	return response
+
 
 def entry_dialog(parent, message, title=''):
 	dialog = Gtk.MessageDialog(parent,
@@ -71,6 +71,7 @@ def entry_dialog(parent, message, title=''):
 	if (response == Gtk.ResponseType.OK) and (text != ''):
 		return text
 
+
 def info_dialog(parent, message, title):
 	dialog = Gtk.MessageDialog(parent, Gtk.DialogFlags.DESTROY_WITH_PARENT,
 			Gtk.MessageType.INFO, Gtk.ButtonsType.OK, message)
@@ -78,6 +79,7 @@ def info_dialog(parent, message, title):
 	dialog.show_all()
 	dialog.run()
 	dialog.destroy()
+
 
 def error_dialog(parent, message, title):
 	dialog = Gtk.MessageDialog(parent=parent, flags=Gtk.DialogFlags.DESTROY_WITH_PARENT,
@@ -351,6 +353,8 @@ class EFIWindow(Gtk.Window):
 
 
 def main():
+	global esp
+	esp = "--disk %s --part %s" % find_esp()
 	win = EFIWindow()
 	win.show_all()
 	Gtk.main()
