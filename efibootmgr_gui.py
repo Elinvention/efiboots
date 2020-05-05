@@ -214,7 +214,7 @@ class EFIStore(Gtk.ListStore):
 		self.boot_add.append((label, loader))
 
 	def remove(self, row_iter):
-		num = self.get_value(row_iter, 0)
+		num = self.get_value(row_iter, EFIStore.ROW_NUM)
 		for row in self:
 			if row[EFIStore.ROW_NUM] == num:
 				self.boot_remove.append(num)
