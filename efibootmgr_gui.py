@@ -46,6 +46,9 @@ def btn_with_icon(icon):
 def yes_no_dialog(parent, primary, secondary):
 	dialog = Gtk.MessageDialog(parent=parent, message_type=Gtk.MessageType.QUESTION,
 							buttons=Gtk.ButtonsType.YES_NO, text=primary)
+	area = dialog.get_message_area()
+	for child in area.get_children():
+		child.set_selectable(True)
 	dialog.format_secondary_text(secondary)
 	response = dialog.run()
 	dialog.destroy()
@@ -70,15 +73,6 @@ def entry_dialog(parent, message, title=''):
 	dialog.destroy()
 	if (response == Gtk.ResponseType.OK) and (text != ''):
 		return text
-
-
-def info_dialog(parent, message, title):
-	dialog = Gtk.MessageDialog(parent=parent, destroy_with_parent=True,
-			message_type=Gtk.MessageType.INFO, buttons=Gtk.ButtonsType.OK, text=message)
-	dialog.set_title(title)
-	dialog.show_all()
-	dialog.run()
-	dialog.destroy()
 
 
 def error_dialog(parent: Union[None, Gtk.Window], message: str, title: str):
