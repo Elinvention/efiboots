@@ -1,29 +1,15 @@
 #!/usr/bin/env python3
 
 import sys
-import gi
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Gio
 import subprocess
 import re
 import logging
+import gi
 
+from typing import Union, Tuple, Callable
 
-def find_esp():
-	custom_efi = [ arg.split("--efi=")[1] for arg in sys.argv[1:] if arg.startswith("--efi=") ]
-	if len(custom_efi) > 0:
-		res = custom_efi[0]
-	else:
-		# findmnt --noheadings --output SOURCE --target /boot/efi
-		cmd = ["findmnt", "--noheadings", "--output", "SOURCE", "--target", "/boot/efi"]
-		logging.debug(cmd)
-		try:
-			res = subprocess.check_output(cmd).decode('UTF-8').strip()
-		except subprocess.CalledProcessError:
-			logging.exception("Please mount ESP to /boot/efi", sep='\n', file=sys.stderr)
-			return
-	logging.info("ESP partition detected on %s", res)
-	return res[:-1], res[-1:]
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, Gio
 
 
 def run_efibootmgr():
@@ -87,6 +73,78 @@ def error_dialog(parent: Union[None, Gtk.Window], message: str, title: str):
 	dialog.destroy()
 
 
+many_esps_error_message = """
+This program detected more than one EFI System Partition on your system. You have to choose the right one.
+You can either mount your ESP on /boot/efi or pass the ESP block device via --efi (e.g. --efi=/dev/sda1).
+
+Choose wisely.
+"""
+
+
+def make_auto_detect_esp_with_findmnt(esp_mount_point) -> Callable:
+	def auto_detect_esp_with_findmnt() -> Tuple[str, str]:
+		# findmnt --noheadings --output SOURCE --mountpoint /boot/efi
+		cmd = ["findmnt", "--noheadings", "--output", "SOURCE,FSTYPE", "--mountpoint", esp_mount_point]
+
+		logging.debug("Running: %s", ' '.join(cmd))
+		source, fstype = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip().split()
+
+		if fstype == 'vfat':
+			disk, part = source[:-1], source[-1:]
+			return disk, part
+	return auto_detect_esp_with_findmnt
+
+
+def auto_detect_esp_with_lsblk() -> Tuple[str, str]:
+	"""
+	Finds the ESP by scanning the partition table. It should work with GPT (tested) and MBR (not tested).
+	This method doesn't require the ESP to be mounted.
+	:return: 2 strings that can be passed to efibootmgr --disk and --part argument.
+	"""
+	esp_part_types = ('C12A7328-F81F-11D2-BA4B-00A0C93EC93B', 'EF')
+
+	# lsblk --noheadings --pairs --paths --output NAME,PARTTYPE
+	cmd = ['lsblk', '--noheadings', '--pairs', '--paths', '--output', 'NAME,PARTTYPE,FSTYPE']
+
+	logging.debug("Running: %s", ' '.join(cmd))
+	res = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()
+	regex = re.compile('^NAME="(.+)" PARTTYPE="(.+)" FSTYPE="(.+)"$', re.MULTILINE)
+	esps = []
+	for match in regex.finditer(res):
+		name, part_type, fs_type = match.groups()
+		if part_type.upper() in esp_part_types and fs_type == 'vfat':
+			esps.append(name)
+	if len(esps) == 1:
+		source = esps[0]
+		disk, part = source[:-1], source[-1:]
+	else:
+		logging.error(many_esps_error_message)
+		error_dialog(None, f"{many_esps_error_message}\nDetected ESPs: {', '.join(esps)}",
+					"More than one EFI System Partition detected!")
+		sys.exit(-1)
+	return disk, part
+
+
+def auto_detect_esp():
+	methods = (make_auto_detect_esp_with_findmnt('/efi'), make_auto_detect_esp_with_findmnt('/boot/efi'),
+			   make_auto_detect_esp_with_findmnt('/boot'), auto_detect_esp_with_lsblk)
+	for find_esp_method in methods:
+		try:
+			result = find_esp_method()
+			if not result:
+				continue
+			disk, part = result
+			logging.info("Detected ESP on disk %s part %s", disk, part)
+			return disk, part
+		except subprocess.CalledProcessError:
+			pass
+	logging.fatal("Can't auto-detect ESP! All methods failed.")
+	error_dialog(None, "Could not find an EFI System Partition. Ensure your ESP is mounted on /efi, "
+					"/boot/efi or /boot, that it has the correct partition type and vfat file system.",
+					"Can't auto-detect ESP!")
+	sys.exit(-1)
+
+
 class EFIStore(Gtk.ListStore):
 	ROW_CURRENT = 0
 	ROW_NUM = 1
@@ -95,8 +153,9 @@ class EFIStore(Gtk.ListStore):
 	ROW_ACTIVE = 4
 	ROW_NEXT = 5
 
-	def __init__(self, window):
+	def __init__(self, window, esp):
 		self.window = window
+		self.esp = esp
 		Gtk.ListStore.__init__(self, bool, str, str, str, bool, bool)
 		self.regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$')
 		self.clear()
@@ -232,6 +291,7 @@ class EFIStore(Gtk.ListStore):
 			)
 
 	def __str__(self):
+		esp = self.esp
 		str = ''
 		for entry in self.boot_remove:
 			str += f'efibootmgr {esp} --delete-bootnum --bootnum {entry}\n'
@@ -254,14 +314,14 @@ class EFIStore(Gtk.ListStore):
 
 
 class EFIWindow(Gtk.Window):
-	def __init__(self):
+	def __init__(self, esp):
 		Gtk.Window.__init__(self, title="EFI boot manager")
 		self.set_border_width(10)
 
 		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
 		self.add(vbox)
 
-		self.store = EFIStore(self)
+		self.store = EFIStore(self, esp)
 		self.tree = Gtk.TreeView(model=self.store, vexpand=True)
 		vbox.add(self.tree)
 
@@ -382,15 +442,26 @@ class EFIWindow(Gtk.Window):
 
 
 def main():
-	global esp
-	esp = "--disk %s --part %s" % find_esp()
-	win = EFIWindow()
+	import argparse
+
+	parser = argparse.ArgumentParser(description="Manage EFI boot variables with this simple GTK GUI.")
+	parser.add_argument('--version', action='version', version='1.0')
+	parser.add_argument('--disk')
+	parser.add_argument('--part')
+
+	parsed_args = parser.parse_args()
+
+	if parsed_args.disk and parsed_args.part:
+		disk, part = parsed_args.disk, parsed_args.part
+	else:
+		disk, part = auto_detect_esp()
+
+	win = EFIWindow(f"--disk {disk} --part {part}")
 	win.show_all()
 	Gtk.main()
 
 
-
 if __name__ == '__main__':
-	logging.basicConfig(level=0)
+	logging.basicConfig(level=logging.DEBUG)
 	main()
 
