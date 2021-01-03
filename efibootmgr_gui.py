@@ -28,10 +28,10 @@ def find_esp():
 
 def run_efibootmgr():
 	try:
-		output = subprocess.check_output([ "efibootmgr", "-v" ]).decode('UTF-8').strip().split('\n')
+		output = subprocess.run(["efibootmgr", "-v"], check=True, capture_output=True, text=True).stdout.strip().split('\n')
 		logging.debug(repr(output))
 		return output
-	except subprocess.CalledProcessError as e:
+	except subprocess.CalledProcessError:
 		logging.exception("Error running efibootmgr. Check if it is installed!")
 
 
@@ -225,7 +225,7 @@ class EFIStore(Gtk.ListStore):
 
 	def apply_changes(self):
 		try:
-			subprocess.check_output(["pkexec", "sh", "-c", str(self)])
+			subprocess.run(["pkexec", "sh", "-c", str(self)], check=True, capture_output=True)
 		except subprocess.CalledProcessError as e:
 			error_dialog(self.window, f"{e:s}\n{e.stderr:s}", "Error")
 		self.refresh()
