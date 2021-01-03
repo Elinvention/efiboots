@@ -44,7 +44,7 @@ def btn_with_icon(icon):
 
 
 def yes_no_dialog(parent, primary, secondary):
-	dialog = Gtk.MessageDialog(parent=parent, flags=0, message_type=Gtk.MessageType.QUESTION,
+	dialog = Gtk.MessageDialog(parent=parent, message_type=Gtk.MessageType.QUESTION,
 							buttons=Gtk.ButtonsType.YES_NO, text=primary)
 	dialog.format_secondary_text(secondary)
 	response = dialog.run()
@@ -53,36 +53,36 @@ def yes_no_dialog(parent, primary, secondary):
 
 
 def entry_dialog(parent, message, title=''):
-	dialog = Gtk.MessageDialog(parent,
-			Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
-			Gtk.MessageType.QUESTION, Gtk.ButtonsType.OK_CANCEL, message)
+	dialog = Gtk.MessageDialog(parent=parent,
+			modal=True, destroy_with_parent=True,
+			message_type=Gtk.MessageType.QUESTION, buttons=Gtk.ButtonsType.OK_CANCEL, text=message)
 
 	dialog.set_title(title)
 
-	dialogBox = dialog.get_content_area()
-	userEntry = Gtk.Entry()
-	userEntry.set_size_request(250,0)
-	dialogBox.pack_end(userEntry, False, False, 0)
+	dialog_box = dialog.get_content_area()
+	user_entry = Gtk.Entry()
+	user_entry.set_size_request(250, 0)
+	dialog_box.pack_end(user_entry, False, False, 0)
 
 	dialog.show_all()
 	response = dialog.run()
-	text = userEntry.get_text() 
+	text = user_entry.get_text()
 	dialog.destroy()
 	if (response == Gtk.ResponseType.OK) and (text != ''):
 		return text
 
 
 def info_dialog(parent, message, title):
-	dialog = Gtk.MessageDialog(parent, Gtk.DialogFlags.DESTROY_WITH_PARENT,
-			Gtk.MessageType.INFO, Gtk.ButtonsType.OK, message)
+	dialog = Gtk.MessageDialog(parent=parent, destroy_with_parent=True,
+			message_type=Gtk.MessageType.INFO, buttons=Gtk.ButtonsType.OK, text=message)
 	dialog.set_title(title)
 	dialog.show_all()
 	dialog.run()
 	dialog.destroy()
 
 
-def error_dialog(parent, message, title):
-	dialog = Gtk.MessageDialog(parent=parent, flags=Gtk.DialogFlags.DESTROY_WITH_PARENT,
+def error_dialog(parent: Union[None, Gtk.Window], message: str, title: str):
+	dialog = Gtk.MessageDialog(parent=parent, destroy_with_parent=True,
 			message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CANCEL, text=title)
 	area = dialog.get_message_area()
 	for child in area.get_children():
@@ -100,10 +100,11 @@ class EFIStore(Gtk.ListStore):
 	ROW_LOADER = 3
 	ROW_ACTIVE = 4
 	ROW_NEXT = 5
+
 	def __init__(self, window):
 		self.window = window
 		Gtk.ListStore.__init__(self, bool, str, str, str, bool, bool)
-		self.regex = re.compile("^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$")
+		self.regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$')
 		self.clear()
 
 	def reorder(self):
@@ -135,6 +136,7 @@ class EFIStore(Gtk.ListStore):
 		for i,row in enumerate(self):
 			if row[EFIStore.ROW_NUM] == num:
 				return i
+
 	def clear(self):
 		super().clear()
 		self.boot_order = []
@@ -225,7 +227,7 @@ class EFIStore(Gtk.ListStore):
 		try:
 			subprocess.check_output(["pkexec", "sh", "-c", str(self)])
 		except subprocess.CalledProcessError as e:
-			error_dialog(self.window, str(e), "Error")
+			error_dialog(self.window, f"{e:s}\n{e.stderr:s}", "Error")
 		self.refresh()
 
 	def pending_changes(self):
@@ -325,7 +327,7 @@ class EFIWindow(Gtk.Window):
 		delete.connect("button-press-event", self.delete)
 
 		tbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-		tbox.add(Gtk.Label("Boot manager timeout in seconds:"))
+		tbox.add(Gtk.Label(label="Boot manager timeout in seconds:"))
 		self.timeout_spin = Gtk.SpinButton.new_with_range(0, 999, 1)
 		self.timeout_spin.connect('value_changed', self.store.change_timeout)
 		tbox.add(self.timeout_spin)
