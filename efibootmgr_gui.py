@@ -6,7 +6,7 @@ import re
 import logging
 import gi
 
-from typing import Union, Tuple, Callable
+from typing import Union, Tuple, Callable, Dict
 
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gio
@@ -156,6 +156,44 @@ def auto_detect_esp():
 	sys.exit(-1)
 
 
+efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$')
+
+
+def parse_efibootmgr(boot) -> Dict:
+	parser_logger = logging.getLogger("parser")
+	parsed_efi = {
+		'entries': [],
+		'boot_order': [],
+		'boot_next': None,
+		'boot_current': None,
+		'timeout': None
+	}
+
+	for line in boot:
+		match = efibootmgr_regex.match(line)
+		if match and match.group(1) and match.group(3):
+			num, active, name, loader = match.groups()
+			parsed = dict(num=num, active=active is not None, name=name, loader=loader)
+			parser_logger.debug("Entry: %s", parsed)
+			parsed_efi['entries'].append(parsed)
+		elif line.startswith("BootOrder"):
+			parsed_efi['boot_order'] = line.split(':')[1].strip().split(',')
+			parser_logger.debug("BootOrder: %s", parsed_efi['boot_order'])
+		elif line.startswith("BootNext"):
+			parsed_efi['boot_next'] = line.split(':')[1].strip()
+			parser_logger.debug("BootNext: %s", parsed_efi['boot_next'])
+		elif line.startswith("BootCurrent"):
+			parsed_efi['boot_current'] = line.split(':')[1].strip()
+			parser_logger.debug("BootCurrent: %s", parsed_efi['boot_current'])
+		elif line.startswith("Timeout"):
+			parsed_efi['timeout'] = int(line.split(':')[1].split()[0].strip())
+			parser_logger.debug("Timeout: %s", parsed_efi['timeout'])
+		else:
+			parser_logger.warning("line didn't match: %s", repr(line))
+
+	return parsed_efi
+
+
 class EFIStore(Gtk.ListStore):
 	ROW_CURRENT = 0
 	ROW_NUM = 1
@@ -212,35 +250,23 @@ class EFIStore(Gtk.ListStore):
 		self.boot_add = []
 		self.boot_remove = []
 		self.boot_current = None
+		self.timeout = None
+		self.timeout_initial = None
 
 	def refresh(self, *args):
 		self.clear()
 
-		parser_logger = logging.getLogger("parser")
 		boot = run_efibootmgr()
 		if boot is not None:
-			for line in boot:
-				match = self.regex.match(line)
-				if match and match.group(1) and match.group(3):
-					num, active, name, loader = match.groups()
-					parsed = [num == self.boot_current, num, name, loader, active is not None, num == self.boot_next]
-					parser_logger.debug("Entry: %s", parsed)
-					self.append(parsed)
-				elif line.startswith("BootOrder"):
-					self.boot_order = self.boot_order_initial = line.split(':')[1].strip().split(',')
-					parser_logger.debug("BootOrder: %s", self.boot_order)
-				elif line.startswith("BootNext"):
-					self.boot_next = self.boot_next_initial = line.split(':')[1].strip()
-					parser_logger.debug("BootNext: %s", self.boot_next)
-				elif line.startswith("BootCurrent"):
-					self.boot_current = line.split(':')[1].strip()
-					parser_logger.debug("BootCurrent: %s", self.boot_current)
-				elif line.startswith("Timeout"):
-					self.timeout = self.timeout_initial = int(line.split(':')[1].split()[0].strip())
-					self.window.timeout_spin.set_value(self.timeout)
-					parser_logger.debug("Timeout: %s", self.timeout)
-				else:
-					parser_logger.warning("line didn't match: %s", repr(line))
+			parsed_efi = parse_efibootmgr(boot)
+			for entry in parsed_efi['entries']:
+				self.append([entry['num'] == parsed_efi['boot_current'], entry['num'], entry['name'], entry['loader'],
+							 entry['active'], entry['num'] == parsed_efi['boot_next']])
+			self.boot_order = self.boot_order_initial = parsed_efi['boot_order']
+			self.boot_next = self.boot_next_initial = parsed_efi['boot_next']
+			self.boot_current = parsed_efi['boot_current']
+			self.timeout = self.timeout_initial = parsed_efi['timeout']
+			self.window.timeout_spin.set_value(self.timeout)
 			self.reorder()
 		else:
 			error_dialog(self.window, "Please verify that efibootmgr is installed", "Error")
