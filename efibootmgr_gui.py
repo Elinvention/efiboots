@@ -81,6 +81,17 @@ Choose wisely.
 """
 
 
+device_regex = re.compile(r'^([a-z/]+[0-9a-z]*?)p?([0-9]+)$')
+
+def device_to_disk_part(device: str) -> Tuple[str, str]:
+	try:
+		disk, part = device_regex.match(device).groups()
+		logging.debug("Device path %s split into %s and %s", device, disk, part)
+		return disk, part
+	except AttributeError:
+		raise ValueError("Could not match device " + device)
+
+
 def make_auto_detect_esp_with_findmnt(esp_mount_point) -> Callable:
 	def auto_detect_esp_with_findmnt() -> Tuple[str, str]:
 		# findmnt --noheadings --output SOURCE --mountpoint /boot/efi
@@ -90,7 +101,7 @@ def make_auto_detect_esp_with_findmnt(esp_mount_point) -> Callable:
 		source, fstype = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip().split()
 
 		if fstype == 'vfat':
-			disk, part = source[:-1], source[-1:]
+			disk, part = device_to_disk_part(source)
 			return disk, part
 	return auto_detect_esp_with_findmnt
 
@@ -116,7 +127,7 @@ def auto_detect_esp_with_lsblk() -> Tuple[str, str]:
 			esps.append(name)
 	if len(esps) == 1:
 		source = esps[0]
-		disk, part = source[:-1], source[-1:]
+		disk, part = device_to_disk_part(source)
 	else:
 		logging.error(many_esps_error_message)
 		error_dialog(None, f"{many_esps_error_message}\nDetected ESPs: {', '.join(esps)}",
