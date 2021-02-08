@@ -34,12 +34,19 @@ sudo pacman -S efibootmgr python3 python-gobject
 ## Usage
 
 ```
-python3 efibootmgr_gui.py
-# that should be the same as
-./efibootmgr_gui.py
+$ python3 efibootmgr_gui.py
 ```
 
-**Note**: This program assumes that the EFI System Partition (ESP) is mounted at
-`/boot/efi`.  
-However you can use --efi=/dev/sd?? (e.g. sda1) to manually specify your
-EFI System Partition (ESP).
+If the program is unable to correctly auto-detect the ESP (EFI System Partition)
+you can manually pass --disk and --part like this (assuming ESP is on /dev/sda1):
+
+```
+$ python3 efibootmgr_gui.py --disk /dev/sda --part 1
+```
+
+You can also [report the issue](https://github.com/Elinvention/efibootmgr-gui/issues/new),
+so that I can improve the auto-detection algorithm.
+
+## Contributing
+
+Contributions are welcome. Development happens on the ["main" branch](https://github.com/Elinvention/efibootmgr-gui/tree/main).
