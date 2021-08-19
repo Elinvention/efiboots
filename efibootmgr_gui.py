@@ -13,12 +13,10 @@ from gi.repository import Gtk, Gio
 
 
 def run_efibootmgr():
-	try:
-		output = subprocess.run(["efibootmgr", "-v"], check=True, capture_output=True, text=True).stdout.strip().split('\n')
-		logging.debug(repr(output))
-		return output
-	except subprocess.CalledProcessError:
-		logging.exception("Error running efibootmgr. Check if it is installed!")
+	output = subprocess.run(["efibootmgr", "-v"], check=True, capture_output=True,
+				text=True).stdout.strip().split('\n')
+	logging.debug(repr(output))
+	return output
 
 
 def btn_with_icon(icon):
@@ -256,7 +254,17 @@ class EFIStore(Gtk.ListStore):
 	def refresh(self, *args):
 		self.clear()
 
-		boot = run_efibootmgr()
+		try:
+			boot = run_efibootmgr()
+		except subprocess.CalledProcessError as e:
+			logging.exception("Error running efibootmgr. Please check that it is correctly installed.")
+			error_dialog(parent=self.window, title="efibootmgr utility not installed!", message="Please check that the efibootmgr utility is correctly installed, as this program requires its output.\n" + e)
+			sys.exit(-1)
+		except UnicodeDecodeError as e:
+			logging.exception("Error decoding efibootmgr -v output.")
+			error_dialog(parent=self.window, title="Error while decoding efibootmgr output.", message="Could not decode efiboomgr output.\n" + e)
+			sys.exit(-2)
+
 		if boot is not None:
 			parsed_efi = parse_efibootmgr(boot)
 			for entry in parsed_efi['entries']:
@@ -268,9 +276,6 @@ class EFIStore(Gtk.ListStore):
 			self.timeout = self.timeout_initial = parsed_efi['timeout']
 			self.window.timeout_spin.set_value(self.timeout)
 			self.reorder()
-		else:
-			error_dialog(self.window, "Please verify that efibootmgr is installed", "Error")
-			sys.exit(-1)
 
 	def change_boot_next(self, widget, path):
 		selected_path = Gtk.TreePath(path)
