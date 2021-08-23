@@ -307,15 +307,19 @@ class EFIStore(Gtk.ListStore):
 		self.timeout = timeout_spin.get_value_as_int()
 
 	def add(self, label, loader):
-		self.insert(0, [False, "NEW*", label, loader, True, False])
-		self.boot_add.append((label, loader))
+		new_num = "NEW{:d}".format(len(self.boot_add))
+		self.insert(0, [False, new_num, label, loader, True, False])
+		self.boot_add.append((new_num, label, loader))
 
-	def remove(self, row_iter):
+	def remove(self, row_index, row_iter):
 		num = self.get_value(row_iter, EFIStore.ROW_NUM)
-		for row in self:
-			if row[EFIStore.ROW_NUM] == num:
-				self.boot_remove.append(num)
-				self.boot_order.remove(num)
+		if num.startswith('NEW'):
+			self.boot_add = [entry for entry in self.boot_add if entry[0] != num]
+		else:
+			for row in self:
+				if row[EFIStore.ROW_NUM] == num:
+					self.boot_remove.append(num)
+					self.boot_order.remove(num)
 		super().remove(row_iter)
 
 	def apply_changes(self):
@@ -337,7 +341,7 @@ class EFIStore(Gtk.ListStore):
 		str = ''
 		for entry in self.boot_remove:
 			str += f'efibootmgr {esp} --delete-bootnum --bootnum {entry}\n'
-		for label, loader in self.boot_add:
+		for _, label, loader in self.boot_add:
 			str += f'efibootmgr {esp} --create --label \'{label}\' --loader \'{loader}\'\n'
 		if self.boot_order != self.boot_order_initial:
 			str += f'efibootmgr {esp} --bootorder {",".join(self.boot_order)}\n'
@@ -455,8 +459,9 @@ class EFIWindow(Gtk.Window):
 
 	def delete(self, *args):
 		_, selection = self.tree.get_selection().get_selected()
+		index = self.tree.get_selection().get_selected_rows()[1][0].get_indices()[0]
 		if selection is not None:
-			self.store.remove(selection)
+			self.store.remove(index, selection)
 
 	def apply_changes(self, *args):
 		if self.store.pending_changes():
