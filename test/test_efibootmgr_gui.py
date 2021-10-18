@@ -1,9 +1,12 @@
 import unittest
 import logging
 
+from pathlib import Path
+
 import efibootmgr_gui
 
 logging.basicConfig(level=0)
+test_dir = Path(__file__).resolve().parent
 
 
 class TestDeviceToDiskPart(unittest.TestCase):
@@ -18,7 +21,7 @@ class TestDeviceToDiskPart(unittest.TestCase):
 
 class TestGUI(unittest.TestCase):
     def test_efibootmgr_parsing(self):
-        with open('myinput.test') as f:
+        with open(test_dir / 'myinput.test') as f:
             parsed = efibootmgr_gui.parse_efibootmgr(f)
             expected = {
                 'entries': [
@@ -37,7 +40,7 @@ class TestGUI(unittest.TestCase):
                 'timeout': 1
             }
             self.assertDictEqual(parsed, expected)
-        with open('mycraftedinput.test') as f:
+        with open(test_dir / 'mycraftedinput.test') as f:
             parsed = efibootmgr_gui.parse_efibootmgr(f)
             expected = {
                 'entries': [
@@ -56,7 +59,7 @@ class TestGUI(unittest.TestCase):
                 'timeout': 1
             }
             self.assertDictEqual(parsed, expected)
-        with open('mycraftedinput2.test') as f:
+        with open(test_dir / 'mycraftedinput2.test') as f:
             parsed = efibootmgr_gui.parse_efibootmgr(f)
             expected = {
                 'entries': [{'num': '0000', 'active': True, 'name': 'SATA1 : Samsung SSD 850 PRO 25', 'loader': None},
@@ -72,7 +75,7 @@ class TestGUI(unittest.TestCase):
                 'boot_order': ['0001', '0003', '0005', '0000', '0002', '0004', '000A'], 'boot_next': None,
                 'boot_current': '0001', 'timeout': 1}
             self.assertDictEqual(parsed, expected)
-        with open('mycraftedinput3.test') as f:
+        with open(test_dir / 'mycraftedinput3.test') as f:
             parsed = efibootmgr_gui.parse_efibootmgr(f)
             expected = {
                 'entries': [{'num': '0000', 'active': True, 'name': 'SATA1 : Samsung SSD 850 PRO 25', 'loader': None},
