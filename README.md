@@ -28,7 +28,7 @@ required to run this script.
 For Arch users:
 
 ```
-sudo pacman -S efibootmgr python3 python-gobject
+sudo pacman -S --needed efibootmgr python3 python-gobject
 ```
 
 ## Usage
