@@ -154,10 +154,14 @@ def auto_detect_esp():
 	sys.exit(-1)
 
 
-efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?(.*)$')
+efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*\)(.*)$')
 
 
 def decode_efibootmgr(code):
+	if '.' not in code:
+		return code
+	if code.startswith('WINDOWS'):
+		return 'WINDOWS' + decode_efibootmgr(code[8:])
 	# Decode as UTF-16 (why efibootmgr displays it like that?)
 	code_bytes = bytearray(code, 'utf-8')
 	for i, byte in enumerate(code_bytes):
