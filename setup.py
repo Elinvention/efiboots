@@ -8,4 +8,8 @@ setup(name='efibootmgr-gui',
       packages=find_packages(),
       # Executables
       scripts=["efibootmgr_gui.py"],
+
+      data_files = [
+            ('share/applications', ['efibootmgr.desktop']),
+      ],
      )
