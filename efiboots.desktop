@@ -1,9 +1,8 @@
 [Desktop Entry]
-Name=efibootmgr
-GenericName=efibootmgr GUI
+Name=EFI Boots
 Comment=Manage EFI boot loader entries with this simple GUI
-Version=0.1
-Exec=efibootmgr-gui
+Version=1.0
+Exec=efiboots
 Type=Application
 Terminal=false
 Icon=system-shutdown

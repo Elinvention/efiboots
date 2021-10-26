@@ -1,4 +1,4 @@
 with import <nixpkgs> {};
 {
-  efibootmgr-gui = callPackage ./derivation.nix {};
+  efiboots = callPackage ./derivation.nix {};
 }

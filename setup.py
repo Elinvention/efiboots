@@ -2,14 +2,14 @@
 
 from setuptools import setup, find_packages
 
-setup(name='efibootmgr-gui',
+setup(name='efiboots',
       version='1.0',
       # Modules to import from other scripts:
       packages=find_packages(),
       # Executables
-      scripts=["efibootmgr_gui.py"],
+      scripts=["efiboots"],
 
       data_files = [
-            ('share/applications', ['efibootmgr.desktop']),
+            ('share/applications', ['efiboots.desktop']),
       ],
      )
