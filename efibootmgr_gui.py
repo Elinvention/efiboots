@@ -154,7 +154,17 @@ def auto_detect_esp():
 	sys.exit(-1)
 
 
-efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$')
+efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?(.*)$')
+
+
+def decode_efibootmgr(code):
+	# Decode as UTF-16 (why efibootmgr displays it like that?)
+	code_bytes = bytearray(code, 'utf-8')
+	for i, byte in enumerate(code_bytes):
+		if i % 2 == 1 and byte == ord('.'):
+			code_bytes[i] = 0
+	decoded = code_bytes.decode('utf-16')
+	return decoded
 
 
 def parse_efibootmgr(boot) -> Dict:
@@ -170,8 +180,9 @@ def parse_efibootmgr(boot) -> Dict:
 	for line in boot:
 		match = efibootmgr_regex.match(line)
 		if match and match.group(1) and match.group(3):
-			num, active, name, loader = match.groups()
-			parsed = dict(num=num, active=active is not None, name=name, loader=loader)
+			num, active, name, path, params = match.groups()
+			params = decode_efibootmgr(params)
+			parsed = dict(num=num, active=active is not None, name=name, path=path, parameters=params)
 			parser_logger.debug("Entry: %s", parsed)
 			parsed_efi['entries'].append(parsed)
 		elif line.startswith("BootOrder"):
@@ -196,14 +207,15 @@ class EFIStore(Gtk.ListStore):
 	ROW_CURRENT = 0
 	ROW_NUM = 1
 	ROW_NAME = 2
-	ROW_LOADER = 3
-	ROW_ACTIVE = 4
-	ROW_NEXT = 5
+	ROW_PATH = 3
+	ROW_PARAMETERS = 4
+	ROW_ACTIVE = 5
+	ROW_NEXT = 6
 
 	def __init__(self, window, esp):
 		self.window = window
 		self.esp = esp
-		Gtk.ListStore.__init__(self, bool, str, str, str, bool, bool)
+		Gtk.ListStore.__init__(self, bool, str, str, str, str, bool, bool)
 		self.regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$')
 		self.clear()
 
@@ -268,7 +280,8 @@ class EFIStore(Gtk.ListStore):
 		if boot is not None:
 			parsed_efi = parse_efibootmgr(boot)
 			for entry in parsed_efi['entries']:
-				self.append([entry['num'] == parsed_efi['boot_current'], entry['num'], entry['name'], entry['loader'],
+				self.append([entry['num'] == parsed_efi['boot_current'], entry['num'],
+							 entry['name'], entry['path'], entry['parameters'],
 							 entry['active'], entry['num'] == parsed_efi['boot_next']])
 			self.boot_order = self.boot_order_initial = parsed_efi['boot_order']
 			self.boot_next = self.boot_next_initial = parsed_efi['boot_next']
@@ -306,10 +319,10 @@ class EFIStore(Gtk.ListStore):
 	def change_timeout(self, timeout_spin):
 		self.timeout = timeout_spin.get_value_as_int()
 
-	def add(self, label, loader):
+	def add(self, label, path, parameters):
 		new_num = "NEW{:d}".format(len(self.boot_add))
-		self.insert(0, [False, new_num, label, loader, True, False])
-		self.boot_add.append((new_num, label, loader))
+		self.insert(0, [False, new_num, label, path, parameters, True, False])
+		self.boot_add.append((new_num, label, path, parameters))
 
 	def remove(self, row_index, row_iter):
 		num = self.get_value(row_iter, EFIStore.ROW_NUM)
@@ -341,8 +354,8 @@ class EFIStore(Gtk.ListStore):
 		str = ''
 		for entry in self.boot_remove:
 			str += f'efibootmgr {esp} --delete-bootnum --bootnum {entry}\n'
-		for _, label, loader in self.boot_add:
-			str += f'efibootmgr {esp} --create --label \'{label}\' --loader \'{loader}\'\n'
+		for _, label, loader, params in self.boot_add:
+			str += f'efibootmgr {esp} --create --label \'{label}\' --loader \'{loader}\' --unicode \'{params}\'\n'
 		if self.boot_order != self.boot_order_initial:
 			str += f'efibootmgr {esp} --bootorder {",".join(self.boot_order)}\n'
 		if self.boot_next_initial != self.boot_next:
@@ -380,9 +393,10 @@ class EFIWindow(Gtk.Window):
 		self.tree.append_column(Gtk.TreeViewColumn("BootCurrent", renderer_boot_current, active=0))
 		self.tree.append_column(Gtk.TreeViewColumn("BootNum", renderer_text, text=1))
 		self.tree.append_column(Gtk.TreeViewColumn("Name", renderer_text, text=2))
-		self.tree.append_column(Gtk.TreeViewColumn("Loader", renderer_text, text=3))
-		self.tree.append_column(Gtk.TreeViewColumn("Active", renderer_check, active=4))
-		self.tree.append_column(Gtk.TreeViewColumn("NextBoot", renderer_radio, active=5))
+		self.tree.append_column(Gtk.TreeViewColumn("Path", renderer_text, text=3))
+		self.tree.append_column(Gtk.TreeViewColumn("Parameters", renderer_text, text=4))
+		self.tree.append_column(Gtk.TreeViewColumn("Active", renderer_check, active=5))
+		self.tree.append_column(Gtk.TreeViewColumn("NextBoot", renderer_radio, active=6))
 		for column in self.tree.get_columns():
 			column.set_resizable(True)
 			column.set_min_width(75)
@@ -452,10 +466,35 @@ class EFIWindow(Gtk.Window):
 				self.store.swap(selection, next)
 
 	def new(self, *args):
-		label = entry_dialog(self, "Label:", "Enter Label of this new EFI entry")
-		if label is not None:
-			loader = entry_dialog(self, "Loader:", "Enter Loader of this new EFI entry")
-			self.store.add(label, loader)
+		dialog = Gtk.MessageDialog(parent=self, modal=True,
+				destroy_with_parent=True, message_type=Gtk.MessageType.QUESTION,
+				buttons=Gtk.ButtonsType.OK_CANCEL, text="Label is mandatory. It is the name that will show up in your EFI boot menu.\n\n"
+				"Path is the path to the loader relative to the ESP, like \\EFI\\Boot\\bootx64.efi\n\n"
+				"Parameters is an optional list of aguments to pass to the loader (your kernel parameters if you use EFISTUB)")
+
+		dialog.set_title("New EFI loader")
+		yes_button = dialog.vbox.get_children()[1].get_children()[0].get_children()[1]
+		yes_button.set_sensitive(False)
+		dialog_box = dialog.get_content_area()
+
+		fields = ["label", "path", "parameters"]
+		entries = {}
+		grid = Gtk.Grid(margin=20, row_spacing=2, column_spacing=8, halign=Gtk.Align.CENTER)
+		for i, field in enumerate(fields):
+			entries[field] = Gtk.Entry()
+			entries[field].set_size_request(400, 0)
+			label = Gtk.Label(label=field.capitalize() + ":")
+			grid.attach(label, 0, i, 1, 1)
+			grid.attach(entries[field], 1, i, 1, 1)
+		
+		dialog_box.add(grid)
+		entries["label"].connect('changed', lambda l: yes_button.set_sensitive(l.get_text() != ''))
+		dialog.show_all()
+		response = dialog.run()
+		label, path, parameters = (map(lambda field: entries[field].get_text(), fields))
+		dialog.destroy()
+		if response == Gtk.ResponseType.OK:
+			self.store.add(label, path, parameters)
 
 	def delete(self, *args):
 		_, selection = self.tree.get_selection().get_selected()
