@@ -6,6 +6,7 @@ setup(name='efiboots',
       version='1.0',
       # Modules to import from other scripts:
       packages=find_packages(),
+      py_modules=['efiboots'],
       # Executables
       scripts=["efiboots"],
 

@@ -12,5 +12,5 @@ python3.pkgs.buildPythonApplication rec {
     license = licenses.gpl3;
     platforms = platforms.linux;
   };
-  doCheck = false;
+  doCheck = true;
 }
