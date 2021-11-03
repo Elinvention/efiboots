@@ -155,18 +155,22 @@ def auto_detect_esp():
 efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*\)(.*)$')
 
 
-def decode_efibootmgr(code):
+def try_decode_efibootmgr(code):
 	if '.' not in code:
 		return code
 	if code.startswith('WINDOWS'):
-		return 'WINDOWS' + decode_efibootmgr(code[8:])
-	# Decode as UTF-16 (why efibootmgr displays it like that?)
-	code_bytes = bytearray(code, 'utf-8')
-	for i, byte in enumerate(code_bytes):
-		if i % 2 == 1 and byte == ord('.'):
-			code_bytes[i] = 0
-	decoded = code_bytes.decode('utf-16')
-	return decoded
+		return 'WINDOWS' + try_decode_efibootmgr(code[8:])
+	try:
+		# Decode as UTF-16 (why efibootmgr displays it like that?)
+		code_bytes = bytearray(code, 'utf-8')
+		for i, byte in enumerate(code_bytes):
+			if i % 2 == 1 and byte == ord('.'):
+				code_bytes[i] = 0
+		decoded = code_bytes.decode('utf-16')
+		return decoded
+	except UnicodeDecodeError as e:
+		logging.warning("Could not decode '%s': %s", code, e)
+		return code
 
 
 def parse_efibootmgr(boot) -> Dict:
@@ -183,7 +187,7 @@ def parse_efibootmgr(boot) -> Dict:
 		match = efibootmgr_regex.match(line)
 		if match and match.group(1) and match.group(3):
 			num, active, name, path, params = match.groups()
-			params = decode_efibootmgr(params)
+			params = try_decode_efibootmgr(params)
 			parsed = dict(num=num, active=active is not None, name=name, path=path, parameters=params)
 			parser_logger.debug("Entry: %s", parsed)
 			parsed_efi['entries'].append(parsed)
