@@ -1,0 +1,12 @@
+BootCurrent: 000B
+Timeout: 0 seconds
+BootOrder: 0002,0004,000B,0005,000A,0003,0001,0006,0000
+Boot0000* SurfaceFrontPage	FvVol(a881d567-6cb0-4eee-8435-2e72d33e45b5)/FvFile(4042708a-0f2d-4823-ac60-0d77b3111889)VOL+.
+Boot0001* Internal Storage	FvVol(a881d567-6cb0-4eee-8435-2e72d33e45b5)/FvFile(50670071-478f-4be7-ad13-8754f379c62f)SDD.
+Boot0002  USB Storage	FvVol(a881d567-6cb0-4eee-8435-2e72d33e45b5)/FvFile(50670071-478f-4be7-ad13-8754f379c62f)USB.
+Boot0003* PXE Network	FvVol(a881d567-6cb0-4eee-8435-2e72d33e45b5)/FvFile(50670071-478f-4be7-ad13-8754f379c62f)PXE.
+Boot0004  linux-surface (reboot=pci)	HD(1,GPT,8b824cbb-3248-4aeb-8ca0-3073b5a41bc4,0x800,0x82000)/File(\\vmlinuz-linux-surface)r.o.o.t.=.L.A.B.E.L.=.r.o.o.t. .i.n.i.t.r.d.=.i.n.t.e.l.-.u.c.o.d.e...i.m.g. .i.n.i.t.r.d.=.i.n.i.t.r.a.m.f.s.-.l.i.n.u.x.-.s.u.r.f.a.c.e...i.m.g. .z.s.w.a.p...e.n.a.b.l.e.d.=.0. .r.e.b.o.o.t.=.p.c.i.
+Boot0005* linux-mainline	HD(1,GPT,8b824cbb-3248-4aeb-8ca0-3073b5a41bc4,0x800,0x82000)/File(\\vmlinuz-linux-mainline)r.o.o.t.=.L.A.B.E.L.=.r.o.o.t. .i.n.i.t.r.d.=.i.n.t.e.l.-.u.c.o.d.e...i.m.g. .i.n.i.t.r.d.=.i.n.i.t.r.a.m.f.s.-.l.i.n.u.x.-.m.a.i.n.l.i.n.e...i.m.g. .z.s.w.a.p...e.n.a.b.l.e.d.=.0.
+Boot0006* Linux Firmware Updater	HD(1,GPT,8b824cbb-3248-4aeb-8ca0-3073b5a41bc4,0x800,0x82000)/File(\\EFI\\arch\\fwupdx64.efi)
+Boot000A* linux-zen	HD(1,GPT,8b824cbb-3248-4aeb-8ca0-3073b5a41bc4,0x800,0x82000)/File(\\vmlinuz-linux-zen)r.o.o.t.=.L.A.B.E.L.=.r.o.o.t. ...i.n.i.t.r.d.=.i.n.t.e.l.-.u.c.o.d.e...i.m.g. .i.n.i.t.r.d.=.i.n.i.t.r.a.m.f.s.-.l.i.n.u.x.-.z.e.n...i.m.g. .z.s.w.a.p...e.n.a.b.l.e.d.=.0.
+Boot000B* linux-surface	HD(1,GPT,8b824cbb-3248-4aeb-8ca0-3073b5a41bc4,0x800,0x82000)/File(\\vmlinuz-linux-surface)r.o.o.t.=.L.A.B.E.L.=.r.o.o.t. ...i.n.i.t.r.d.=.i.n.t.e.l.-.u.c.o.d.e...i.m.g. .i.n.i.t.r.d.=.i.n.i.t.r.a.m.f.s.-.l.i.n.u.x.-.s.u.r.f.a.c.e...i.m.g. .z.s.w.a.p...e.n.a.b.l.e.d.=.0.
