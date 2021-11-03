@@ -158,6 +158,8 @@ efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.
 def try_decode_efibootmgr(code):
 	if '.' not in code:
 		return code
+	if code.endswith('.') and code.count('.') == 1:
+	    return code
 	if code.startswith('WINDOWS'):
 		return 'WINDOWS' + try_decode_efibootmgr(code[8:])
 	try:
