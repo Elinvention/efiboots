@@ -6,7 +6,7 @@ import gi
 
 from typing import Union, Tuple, Callable, Dict
 
-gi.require_version('Gtk', '3.0')
+gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gio
 
 
@@ -18,55 +18,38 @@ def run_efibootmgr():
 
 
 def btn_with_icon(icon):
-	btn = Gtk.Button()
+	btn = Gtk.Button(hexpand=True)
 	icon = Gio.ThemedIcon(name=icon)
-	image = Gtk.Image.new_from_gicon(icon, Gtk.IconSize.BUTTON)
-	btn.add(image)
+	image = Gtk.Image.new_from_gicon(icon)
+	btn.set_child(image)
 	return btn
 
 
-def yes_no_dialog(parent, primary, secondary):
-	dialog = Gtk.MessageDialog(parent=parent, message_type=Gtk.MessageType.QUESTION,
-							buttons=Gtk.ButtonsType.YES_NO, text=primary)
+def yes_no_dialog(parent, primary, secondary, on_response):
+	dialog = Gtk.MessageDialog(transient_for=parent, message_type=Gtk.MessageType.QUESTION,
+							buttons=Gtk.ButtonsType.YES_NO, text=primary, secondary_text=secondary)
 	area = dialog.get_message_area()
-	for child in area.get_children():
+	child = area.get_first_child()
+	while child:
 		child.set_selectable(True)
-	dialog.format_secondary_text(secondary)
-	response = dialog.run()
-	dialog.destroy()
-	return response
+		child = child.get_next_sibling()
+	dialog.connect('response', on_response)
+	dialog.show()
+	return dialog
 
 
-def entry_dialog(parent, message, title=''):
-	dialog = Gtk.MessageDialog(parent=parent,
-			modal=True, destroy_with_parent=True,
-			message_type=Gtk.MessageType.QUESTION, buttons=Gtk.ButtonsType.OK_CANCEL, text=message)
-
-	dialog.set_title(title)
-
-	dialog_box = dialog.get_content_area()
-	user_entry = Gtk.Entry()
-	user_entry.set_size_request(250, 0)
-	dialog_box.pack_end(user_entry, False, False, 0)
-
-	dialog.show_all()
-	response = dialog.run()
-	text = user_entry.get_text()
-	dialog.destroy()
-	if (response == Gtk.ResponseType.OK) and (text != ''):
-		return text
-
-
-def error_dialog(parent: Union[None, Gtk.Window], message: str, title: str):
-	dialog = Gtk.MessageDialog(parent=parent, destroy_with_parent=True,
-			message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CANCEL, text=title)
+def error_dialog(transient_for: Gtk.Window, message: str, title: str, on_response):
+	dialog = Gtk.MessageDialog(transient_for=transient_for, destroy_with_parent=True,
+			message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CANCEL,
+			text=title, secondary_text=message, modal=True)
 	area = dialog.get_message_area()
-	for child in area.get_children():
+	child = area.get_first_child()
+	while child:
 		child.set_selectable(True)
-	dialog.format_secondary_text(message)
-	dialog.show_all()
-	dialog.run()
-	dialog.destroy()
+		child = child.get_next_sibling()
+	dialog.connect('response', on_response)
+	dialog.show()
+	return dialog
 
 
 many_esps_error_message = """
@@ -125,10 +108,10 @@ def auto_detect_esp_with_lsblk() -> Tuple[str, str]:
 		source = esps[0]
 		disk, part = device_to_disk_part(source)
 	else:
-		logging.error(many_esps_error_message)
+		logging.warning(many_esps_error_message)
 		error_dialog(None, f"{many_esps_error_message}\nDetected ESPs: {', '.join(esps)}",
-					"More than one EFI System Partition detected!")
-		sys.exit(-1)
+					"More than one EFI System Partition detected!", lambda *_: sys.exit(-1))
+		return None
 	return disk, part
 
 
@@ -148,8 +131,7 @@ def auto_detect_esp():
 	logging.fatal("Can't auto-detect ESP! All methods failed.")
 	error_dialog(None, "Could not find an EFI System Partition. Ensure your ESP is mounted on /efi, "
 					"/boot/efi or /boot, that it has the correct partition type and vfat file system.",
-					"Can't auto-detect ESP!")
-	sys.exit(-1)
+					"Can't auto-detect ESP!", lambda *_: sys.exit(-1))
 
 
 efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+\/File\((.+)\)|.*\))(.*)$')
@@ -221,7 +203,7 @@ def parse_efibootmgr(boot) -> Dict:
 			key, value = parse_efibootmgr_line(line)
 			if key == 'entry':
 				parsed_efi['entries'].append(value)
-		else:
+			else:
 				parsed_efi[key] = value
 		except ValueError as e:
 			parser_logger.warning("line didn't match: %s", e.args[1])
@@ -296,19 +278,27 @@ class EFIStore(Gtk.ListStore):
 			boot = run_efibootmgr()
 		except subprocess.CalledProcessError as e:
 			logging.exception("Error running efibootmgr. Please check that it is correctly installed.")
-			error_dialog(parent=self.window, title="efibootmgr utility not installed!", message="Please check that the efibootmgr utility is correctly installed, as this program requires its output.\n" + e)
-			sys.exit(-1)
+			error_dialog(transient_for=self.window, title="efibootmgr utility not installed!",
+						message="Please check that the efibootmgr utility is correctly installed, as this program requires its output.\n" + e,
+						on_response=lambda *_: sys.exit(-1))
+			return
 		except UnicodeDecodeError as e:
 			logging.exception("Error decoding efibootmgr -v output.")
-			error_dialog(parent=self.window, title="Error while decoding efibootmgr output.", message="Could not decode efiboomgr output.\n" + e)
-			sys.exit(-2)
+			error_dialog(transient_for=self.window, title="Error while decoding efibootmgr output.",
+						message="Could not decode efiboomgr output.\n" + e, on_response=lambda *_: sys.exit(-2))
+			return
 
 		if boot is not None:
 			parsed_efi = parse_efibootmgr(boot)
 			for entry in parsed_efi['entries']:
-				self.append([entry['num'] == parsed_efi['boot_current'], entry['num'],
-							 entry['name'], entry['path'], entry['parameters'],
-							 entry['active'], entry['num'] == parsed_efi['boot_next']])
+				row = self.append()
+				self.set_value(row, EFIStore.ROW_CURRENT, entry['num'] == parsed_efi['boot_current'])
+				self.set_value(row, EFIStore.ROW_NUM, entry['num'])
+				self.set_value(row, EFIStore.ROW_NAME, entry['name'])
+				self.set_value(row, EFIStore.ROW_PATH, entry['path'])
+				self.set_value(row, EFIStore.ROW_PARAMETERS, entry['parameters'])
+				self.set_value(row, EFIStore.ROW_ACTIVE, entry['active'])
+				self.set_value(row, EFIStore.ROW_NEXT, entry['num'] == parsed_efi['boot_next'])
 			self.boot_order = self.boot_order_initial = parsed_efi['boot_order']
 			self.boot_next = self.boot_next_initial = parsed_efi['boot_next']
 			self.boot_current = parsed_efi['boot_current']
@@ -345,9 +335,19 @@ class EFIStore(Gtk.ListStore):
 	def change_timeout(self, timeout_spin):
 		self.timeout = timeout_spin.get_value_as_int()
 
+	def fill_row(self, row, current, num, name, path, parameters, active, next):
+		self.set_value(row, EFIStore.ROW_CURRENT, current)
+		self.set_value(row, EFIStore.ROW_NUM, num)
+		self.set_value(row, EFIStore.ROW_NAME, name)
+		self.set_value(row, EFIStore.ROW_PATH, path)
+		self.set_value(row, EFIStore.ROW_PARAMETERS, parameters)
+		self.set_value(row, EFIStore.ROW_ACTIVE, active)
+		self.set_value(row, EFIStore.ROW_NEXT, next)
+
 	def add(self, label, path, parameters):
 		new_num = "NEW{:d}".format(len(self.boot_add))
-		self.insert(0, [False, new_num, label, path, parameters, True, False])
+		row = self.insert(0)
+		self.fill_row(row, False, new_num, label, path, parameters, True, False)
 		self.boot_add.append((new_num, label, path, parameters))
 
 	def remove(self, row_index, row_iter):
@@ -362,11 +362,12 @@ class EFIStore(Gtk.ListStore):
 		super().remove(row_iter)
 
 	def apply_changes(self):
+		logging.info("Running command `pkexec sh -c %s`", str(self))
 		try:
 			subprocess.run(["pkexec", "sh", "-c", str(self)], check=True, capture_output=True)
+			self.refresh()
 		except subprocess.CalledProcessError as e:
-			error_dialog(self.window, f"{e:s}\n{e.stderr:s}", "Error")
-		self.refresh()
+			error_dialog(self.window, f"{e}\n{e.stderr.decode()}", "Error", lambda d, r: d.close())
 
 	def pending_changes(self):
 		return (self.boot_next_initial != self.boot_next or
@@ -398,17 +399,16 @@ class EFIStore(Gtk.ListStore):
 		return str
 
 
-class EFIWindow(Gtk.Window):
-	def __init__(self, esp):
-		Gtk.Window.__init__(self, title="EFI boot manager")
-		self.set_border_width(10)
+class EFIWindow(Gtk.ApplicationWindow):
+	def __init__(self, app, esp):
+		Gtk.Window.__init__(self, title="EFI boot manager", application=app)
 
-		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-		self.add(vbox)
+		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin_top=10, margin_start=10, margin_bottom=10, margin_end=10)
+		self.set_child(vbox)
 
 		self.store = EFIStore(self, esp)
 		self.tree = Gtk.TreeView(model=self.store, vexpand=True)
-		vbox.add(self.tree)
+		vbox.append(self.tree)
 
 		renderer_text = Gtk.CellRendererText()
 		renderer_check = Gtk.CellRendererToggle(radio=False)
@@ -428,23 +428,21 @@ class EFIWindow(Gtk.Window):
 			column.set_min_width(75)
 
 		hb = Gtk.HeaderBar()
-		hb.set_show_close_button(True)
-		hb.props.title = "EFI boot manager"
 		self.set_titlebar(hb)
 
 		clear_btn = btn_with_icon("edit-clear-all-symbolic")
 		clear_btn.set_tooltip_text("clear all")
-		clear_btn.connect("button-press-event", self.discard_changes)
+		clear_btn.connect("clicked", self.on_clicked_discard_changes)
 		hb.pack_end(clear_btn)
 
 		write_btn = btn_with_icon("document-save-symbolic")
-		write_btn.connect("button-press-event", self.apply_changes)
+		write_btn.connect("clicked", self.apply_changes)
 		write_btn.set_tooltip_text("save")
 		hb.pack_end(write_btn)
 
-		hbox = Gtk.HButtonBox()
-		hbox.set_layout(Gtk.ButtonBoxStyle.EXPAND)
-		vbox.add(hbox)
+		hbox = Gtk.Box(hexpand=True)
+		hbox.add_css_class("linked")
+		vbox.append(hbox)
 
 		up = btn_with_icon("go-up-symbolic")
 		down = btn_with_icon("go-down-symbolic")
@@ -456,24 +454,24 @@ class EFIWindow(Gtk.Window):
 		new.set_tooltip_text("create new entry")
 		delete.set_tooltip_text("delete entry")
 
-		hbox.add(up)
-		hbox.add(down)
-		hbox.add(new)
-		hbox.add(delete)
+		hbox.append(up)
+		hbox.append(down)
+		hbox.append(new)
+		hbox.append(delete)
 
-		up.connect("button-press-event", self.up)
-		down.connect("button-press-event", self.down)
-		new.connect("button-press-event", self.new)
-		delete.connect("button-press-event", self.delete)
+		up.connect("clicked", self.up)
+		down.connect("clicked", self.down)
+		new.connect("clicked", self.new)
+		delete.connect("clicked", self.delete)
 
 		tbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-		tbox.add(Gtk.Label(label="Boot manager timeout in seconds:"))
+		tbox.append(Gtk.Label(label="Boot manager timeout in seconds:"))
 		self.timeout_spin = Gtk.SpinButton.new_with_range(0, 999, 1)
 		self.timeout_spin.connect('value_changed', self.store.change_timeout)
-		tbox.add(self.timeout_spin)
-		vbox.add(tbox)
+		tbox.append(self.timeout_spin)
+		vbox.append(tbox)
 
-		self.connect("delete-event", self.quit)
+		self.connect("close-request", self.on_close_request)
 		self.set_default_size(300, 260)
 		self.store.refresh()
 
@@ -492,20 +490,20 @@ class EFIWindow(Gtk.Window):
 				self.store.swap(selection, next)
 
 	def new(self, *args):
-		dialog = Gtk.MessageDialog(parent=self, modal=True,
+		dialog = Gtk.MessageDialog(transient_for=self, modal=True,
 				destroy_with_parent=True, message_type=Gtk.MessageType.QUESTION,
 				buttons=Gtk.ButtonsType.OK_CANCEL, text="Label is mandatory. It is the name that will show up in your EFI boot menu.\n\n"
 				"Path is the path to the loader relative to the ESP, like \\EFI\\Boot\\bootx64.efi\n\n"
 				"Parameters is an optional list of aguments to pass to the loader (your kernel parameters if you use EFISTUB)")
 
 		dialog.set_title("New EFI loader")
-		yes_button = dialog.vbox.get_children()[1].get_children()[0].get_children()[1]
+		yes_button = dialog.get_widget_for_response(Gtk.ResponseType.OK)
 		yes_button.set_sensitive(False)
 		dialog_box = dialog.get_content_area()
 
 		fields = ["label", "path", "parameters"]
 		entries = {}
-		grid = Gtk.Grid(margin=20, row_spacing=2, column_spacing=8, halign=Gtk.Align.CENTER)
+		grid = Gtk.Grid(row_spacing=2, column_spacing=8, halign=Gtk.Align.CENTER)
 		for i, field in enumerate(fields):
 			entries[field] = Gtk.Entry()
 			entries[field].set_size_request(400, 0)
@@ -513,14 +511,16 @@ class EFIWindow(Gtk.Window):
 			grid.attach(label, 0, i, 1, 1)
 			grid.attach(entries[field], 1, i, 1, 1)
 		
-		dialog_box.add(grid)
+		dialog_box.append(grid)
 		entries["label"].connect('changed', lambda l: yes_button.set_sensitive(l.get_text() != ''))
-		dialog.show_all()
-		response = dialog.run()
-		label, path, parameters = (map(lambda field: entries[field].get_text(), fields))
-		dialog.destroy()
-		if response == Gtk.ResponseType.OK:
-			self.store.add(label, path, parameters)
+		def on_response(dialog, response):
+			label, path, parameters = map(lambda field: entries[field].get_text(), fields)
+			if response == Gtk.ResponseType.OK:
+				self.store.add(label, path, parameters)
+			dialog.close()
+		dialog.connect('response', on_response)
+		dialog.show()
+
 
 	def delete(self, *args):
 		_, selection = self.tree.get_selection().get_selected()
@@ -530,33 +530,48 @@ class EFIWindow(Gtk.Window):
 
 	def apply_changes(self, *args):
 		if self.store.pending_changes():
-			response = yes_no_dialog(self, "Are you sure you want to continue?",
-							"Your changes are about to be written to EFI NVRAM.\nThe following commands will be run:\n" + str(self.store))
-			if response == Gtk.ResponseType.YES:
-				self.store.apply_changes()
+			def on_response(dialog, response):
+				if response == Gtk.ResponseType.YES:
+					self.store.apply_changes()
+				dialog.close()
+			dialog = yes_no_dialog(self, "Are you sure you want to continue?",
+							"Your changes are about to be written to EFI NVRAM.\nThe following commands will be run:\n" + str(self.store),
+							on_response)
 
-	def discard_warning(self):
+	def discard_warning(self, on_response, win):
 		if self.store.pending_changes():
-			response = yes_no_dialog(self, "Are you sure you want to discard?", "Your changes will be lost if you don't save them.")
-			return response == Gtk.ResponseType.YES
+			return yes_no_dialog(self, "Are you sure you want to discard?",
+									"Your changes will be lost if you don't save them.",
+									on_response)
 		else:
-			return True
+			return None
 
-	def discard_changes(self, *args):
-		if self.discard_warning():
+	def on_clicked_discard_changes(self, button):
+		def on_response(dialog, response):
+			if response == Gtk.ResponseType.YES:
+				self.store.refresh()
+			dialog.close()
+		if not self.discard_warning(on_response, self):
 			self.store.refresh()
 
-	def quit(self, *args):
-		if not self.discard_warning():
+
+	def on_close_request(self, win):
+		def on_response(dialog, response):
+			dialog.close()
+			if response == Gtk.ResponseType.YES:
+				win.destroy()
+		if self.discard_warning(on_response, win):
 			return True
-		else:
-			Gtk.main_quit()
 
 
 def run(disk, part):
 	if not (disk and part):
 		disk, part = auto_detect_esp()
 
-	win = EFIWindow(f"--disk {disk} --part {part}")
-	win.show_all()
-	Gtk.main()
+	def on_activate(app):
+		win = EFIWindow(app, f"--disk {disk} --part {part}")
+		win.show()
+
+	app = Gtk.Application()
+	app.connect('activate', on_activate)
+	app.run()
