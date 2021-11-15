@@ -19,98 +19,43 @@ class TestDeviceToDiskPart(unittest.TestCase):
         self.assertTupleEqual(efiboots.device_to_disk_part('/dev/nvme0n1p1'), ('/dev/nvme0n1', '1'))
 
 
-class TestGUI(unittest.TestCase):
-    def test_efibootmgr_parsing(self):
-        with open(test_dir / 'myinput.test') as f:
-            parsed = efiboots.parse_efibootmgr(f)
-            expected = {
-                'entries': [
-                    {'num': '0000', 'active': True, 'name': 'SATA1 : Samsung SSD 850 PRO 25', 'path': None, 'parameters': ''},
-                    {'num': '0001', 'active': True, 'name': 'rEFInd Boot Manager', 'path': None, 'parameters': ''},
-                    {'num': '0002', 'active': True, 'name': 'Mass Storage Device ', 'path': None, 'parameters': ''},
-                    {'num': '0003', 'active': True, 'name': 'Windows Boot Manager', 'path': None, 'parameters': 'WINDOWS....x.BCDOBJECT={9dea862c-5cdd-4e70-acc1-f32b344d4795}.o......\x7f.'},
-                    {'num': '0004', 'active': False, 'name': ' UEFI: Built-in EFI Shell ', 'path': None, 'parameters': 'AMBO'},
-                    {'num': '0005', 'active': True, 'name': 'UEFI OS', 'path': None, 'parameters': ''},
-                    {'num': '0007', 'active': True, 'name': 'Manjaro', 'path': None, 'parameters': ''}
-                ],
-                'boot_order': ['0001', '0007', '0003', '0005', '0000', '0002', '0004'],
-                'boot_next': None,
-                'boot_current': '0001',
-                'timeout': 1
-            }
-            self.assertDictEqual(parsed, expected)
-        with open(test_dir / 'mycraftedinput.test') as f:
-            parsed = efiboots.parse_efibootmgr(f)
-            expected = {
-                'entries': [
-                    {'num': '0000', 'active': True, 'name': 'SATA1 : Samsung SSD 850 PRO 25', 'path': None, 'parameters': ''},
-                    {'num': '0001', 'active': True, 'name': 'rEFInd Boot Manager', 'path': None, 'parameters': ''},
-                    {'num': '0002', 'active': True, 'name': 'Mass Storage Device ', 'path': None, 'parameters': ''},
-                    {'num': '0003', 'active': True, 'name': 'Windows Boot Manager', 'path': None, 'parameters': 'WINDOWS....x.BCDOBJECT={9dea862c-5cdd-4e70-acc1-f32b344d4795}.o......\x7f.'},
-                    {'num': '0004', 'active': False, 'name': ' UEFI: Built-in EFI Shell ', 'path': None, 'parameters': 'AMBO'},
-                    {'num': '0005', 'active': True, 'name': 'UEFI OS', 'path': None, 'parameters': ''},
-                    {'num': '0007', 'active': True, 'name': 'Manjaro', 'path': None, 'parameters': ''}
-                ],
-                'boot_order': ['0001', '0003', '0005', '0000', '0002', '0004'],
-                'boot_next': None,
-                'boot_current': '0001',
-                'timeout': 1
-            }
-            self.assertDictEqual(parsed, expected)
-        with open(test_dir / 'mycraftedinput2.test') as f:
-            parsed = efiboots.parse_efibootmgr(f)
-            expected = {
-                'entries': [
-                    {'num': '0000', 'active': True, 'name': 'SATA1 : Samsung SSD 850 PRO 25', 'path': None, 'parameters': ''},
-                    {'num': '0001', 'active': True, 'name': 'rEFInd Boot Manager', 'path': None, 'parameters': ''},
-                    {'num': '0002', 'active': True, 'name': 'Mass Storage Device ', 'path': None, 'parameters': ''},
-                    {'num': '0003', 'active': True, 'name': 'Windows Boot Manager', 'path': None, 'parameters': 'WINDOWS....x.BCDOBJECT={9dea862c-5cdd-4e70-acc1-f32b344d4795}.o......\x7f.'},
-                    {'num': '0004', 'active': False, 'name': ' UEFI: Built-in EFI Shell ', 'path': None, 'parameters': 'AMBO'},
-                    {'num': '0005', 'active': True, 'name': 'UEFI OS', 'path': None, 'parameters': ''},
-                    {'num': '0007', 'active': True, 'name': 'Manjaro', 'path': None, 'parameters': ''}
-                ],
-                'boot_order': ['0001', '0003', '0005', '0000', '0002', '0004', '000A'],
-                'boot_next': None,
-                'boot_current': '0001',
-                'timeout': 1
-            }
-            self.assertDictEqual(parsed, expected)
-        with open(test_dir / 'mycraftedinput3.test') as f:
-            parsed = efiboots.parse_efibootmgr(f)
-            expected = {
-                'entries': [
-                    {'num': '0000', 'active': True, 'name': 'SATA1 : Samsung SSD 850 PRO 25', 'path': None, 'parameters': ''},
-                    {'num': '0001', 'active': True, 'name': 'rEFInd Boot Manager', 'path': None, 'parameters': ''},
-                    {'num': '0002', 'active': True, 'name': 'Mass Storage Device ', 'path': None, 'parameters': ''},
-                    {'num': '0003', 'active': True, 'name': 'Windows Boot Manager', 'path': None, 'parameters': 'WINDOWS....x.BCDOBJECT={9dea862c-5cdd-4e70-acc1-f32b344d4795}.o......\x7f.'},
-                    {'num': '0004', 'active': False, 'name': ' UEFI: Built-in EFI Shell ', 'path': None, 'parameters': 'AMBO'},
-                    {'num': '0005', 'active': True, 'name': 'UEFI OS', 'path': None, 'parameters': ''},
-                    {'num': '0007', 'active': True, 'name': 'Manjaro', 'path': None, 'parameters': ''}
-                ],
-                'boot_order': ['0001', '0007', '0003', '0005', '0000', '0002', '0004'],
-                'boot_next': None,
-                'boot_current': '000A',
-                'timeout': 1
-            }
-            self.assertDictEqual(parsed, expected)
+class TestEfibootmgrDecode(unittest.TestCase):
+    def test_decode(self):
+        decoded = efiboots.try_decode_efibootmgr('B.C.D.O.B.J.E.C.T.=.{.9.d.e.a.8.6.2.c.-.5.c.d.d.-.4.e.7.0.-.a.c.c.1.-.f.3.2.b.3.4.4.d.4.7.9.5.}.')
+        expected = 'BCDOBJECT={9dea862c-5cdd-4e70-acc1-f32b344d4795}'
+        self.assertEqual(decoded, expected)
 
-        with open(test_dir / 'input5.test') as f:
-            parsed = efiboots.parse_efibootmgr(f)
-            expected = {
-                'entries': [
-                    {'num': '0000', 'active': True, 'name': 'SurfaceFrontPage', 'path': None, 'parameters': 'VOL+.'},
-                    {'num': '0001', 'active': True, 'name': 'Internal Storage', 'path': None, 'parameters': 'SDD.'},
-                    {'num': '0002', 'active': False, 'name': ' USB Storage', 'path': None, 'parameters': 'USB.'},
-                    {'num': '0003', 'active': True, 'name': 'PXE Network', 'path': None, 'parameters': 'PXE.'},
-                    {'num': '0004', 'active': False, 'name': ' linux-surface (reboot=pci)', 'path': None, 'parameters': 'root=LABEL=root initrd=intel-ucode.img initrd=initramfs-linux-surface.img zswap.enabled=0 reboot=pci'},
-                    {'num': '0005', 'active': True, 'name': 'linux-mainline', 'path': None, 'parameters': 'root=LABEL=root initrd=intel-ucode.img initrd=initramfs-linux-mainline.img zswap.enabled=0'},
-                    {'num': '0006', 'active': True, 'name': 'Linux Firmware Updater', 'path': None, 'parameters': ''},
-                    {'num': '000A', 'active': True, 'name': 'linux-zen', 'path': None, 'parameters': 'root=LABEL=root .initrd=intel-ucode.img initrd=initramfs-linux-zen.img zswap.enabled=0'},
-                    {'num': '000B', 'active': True, 'name': 'linux-surface', 'path': None, 'parameters': 'root=LABEL=root .initrd=intel-ucode.img initrd=initramfs-linux-surface.img zswap.enabled=0'}
-                ],
-                'boot_order': ['0002', '0004', '000B', '0005', '000A', '0003', '0001', '0006', '0000'],
-                'boot_next': None,
-                'boot_current': '000B',
-                'timeout': 0
-            }
-            self.assertDictEqual(parsed, expected)
+
+class TestParser(unittest.TestCase):
+    def test_efibootmgr_entries_parsing(self):
+        key, value = efiboots.parse_efibootmgr_line('Boot0000* SATA1 : Samsung SSD 850 PRO 25\tBBS(17,,0x0)')
+        self.assertEqual(key, 'entry')
+        self.assertDictEqual(value, {'num': '0000', 'active': True,
+                                     'name': 'SATA1 : Samsung SSD 850 PRO 25',
+                                     'path': '', 'parameters': ''})
+        key, value = efiboots.parse_efibootmgr_line('Boot0001* rEFInd Boot Manager\tHD(1,GPT,fda4f976-b250-4569-be80-0449804ab7c2,0x800,0x40000)/File(\EFI\refind\refind_x64.efi)')
+        self.assertEqual(key, 'entry')
+        self.assertDictEqual(value, {'num': '0001', 'active': True,
+                                     'name': 'rEFInd Boot Manager',
+                                     'path': '\\EFI\refind\refind_x64.efi',
+                                     'parameters': ''})
+        key,value = efiboots.parse_efibootmgr_line('Boot0003* Windows Boot Manager\tHD(1,GPT,fda4f976-b250-4569-be80-0449804ab7c2,0x800,0x40000)/File(\EFI\Microsoft\Boot\bootmgfw.efi)WINDOWS.........x...B.C.D.O.B.J.E.C.T.=.{.9.d.e.a.8.6.2.c.-.5.c.d.d.-.4.e.7.0.-.a.c.c.1.-.f.3.2.b.3.4.4.d.4.7.9.5.}...o................')
+        self.assertEqual(key, 'entry')
+        self.assertDictEqual(value, {'num': '0003', 'active': True, 'name': 'Windows Boot Manager',
+                                    'path': '\\EFI\\Microsoft\\Boot\x08ootmgfw.efi',
+                                    'parameters': 'WINDOWS....x.BCDOBJECT={9dea862c-5cdd-4e70-acc1-f32b344d4795}.o.......'})
+
+    def test_efibootmgr_bootcurrent_parsing(self):
+        key, value = efiboots.parse_efibootmgr_line('BootCurrent: 0001')
+        self.assertEqual(key, 'boot_current')
+        self.assertEqual(value, '0001')
+
+    def test_efibootmgr_timeout_parsing(self):
+        key, value = efiboots.parse_efibootmgr_line('Timeout: 1 seconds')
+        self.assertEqual(key, 'timeout')
+        self.assertEqual(value, 1)
+
+    def test_efibootmgr_bootorder_parsing(self):
+        key, value = efiboots.parse_efibootmgr_line('BootOrder: 0001,0003,0005,0000,0002,0004')
+        self.assertEqual(key, 'boot_order')
+        self.assertListEqual(value, ['0001', '0003', '0005', '0000', '0002', '0004'])

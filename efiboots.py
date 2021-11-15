@@ -152,7 +152,7 @@ def auto_detect_esp():
 	sys.exit(-1)
 
 
-efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*\)(.*)$')
+efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+\/File\((.+)\)|.*\))(.*)$')
 
 
 def try_decode_efibootmgr(code):
@@ -175,6 +175,37 @@ def try_decode_efibootmgr(code):
 		return code
 
 
+def parse_efibootmgr_line(line: str) -> Tuple:
+	parser_logger = logging.getLogger("parser")
+	match = efibootmgr_regex.match(line)
+
+	if match and match.group(1) and match.group(3):
+		num, active, name, path, params = match.groups()
+		params = try_decode_efibootmgr(params)
+		parsed = dict(num=num, active=active is not None, name=name,
+					path=path if path else '', parameters=params)
+		parser_logger.debug("Entry: %s", parsed)
+		return 'entry', parsed
+	if line.startswith("BootOrder"):
+		parsed = line.split(':')[1].strip().split(',')
+		parser_logger.debug("BootOrder: %s", parsed)
+		return 'boot_order', parsed
+	if line.startswith("BootNext"):
+		parsed = line.split(':')[1].strip()
+		parser_logger.debug("BootNext: %s", parsed)
+		return 'boot_next', parsed
+	if line.startswith("BootCurrent"):
+		parsed = line.split(':')[1].strip()
+		parser_logger.debug("BootCurrent: %s", parsed)
+		return 'boot_current', parsed
+	if line.startswith("Timeout"):
+		parsed = int(line.split(':')[1].split()[0].strip())
+		parser_logger.debug("Timeout: %s", parsed)
+		return 'timeout', parsed
+
+	raise ValueError("line didn't match", repr(line))
+
+
 def parse_efibootmgr(boot) -> Dict:
 	parser_logger = logging.getLogger("parser")
 	parsed_efi = {
@@ -186,27 +217,14 @@ def parse_efibootmgr(boot) -> Dict:
 	}
 
 	for line in boot:
-		match = efibootmgr_regex.match(line)
-		if match and match.group(1) and match.group(3):
-			num, active, name, path, params = match.groups()
-			params = try_decode_efibootmgr(params)
-			parsed = dict(num=num, active=active is not None, name=name, path=path, parameters=params)
-			parser_logger.debug("Entry: %s", parsed)
-			parsed_efi['entries'].append(parsed)
-		elif line.startswith("BootOrder"):
-			parsed_efi['boot_order'] = line.split(':')[1].strip().split(',')
-			parser_logger.debug("BootOrder: %s", parsed_efi['boot_order'])
-		elif line.startswith("BootNext"):
-			parsed_efi['boot_next'] = line.split(':')[1].strip()
-			parser_logger.debug("BootNext: %s", parsed_efi['boot_next'])
-		elif line.startswith("BootCurrent"):
-			parsed_efi['boot_current'] = line.split(':')[1].strip()
-			parser_logger.debug("BootCurrent: %s", parsed_efi['boot_current'])
-		elif line.startswith("Timeout"):
-			parsed_efi['timeout'] = int(line.split(':')[1].split()[0].strip())
-			parser_logger.debug("Timeout: %s", parsed_efi['timeout'])
+		try:
+			key, value = parse_efibootmgr_line(line)
+			if key == 'entry':
+				parsed_efi['entries'].append(value)
 		else:
-			parser_logger.warning("line didn't match: %s", repr(line))
+				parsed_efi[key] = value
+		except ValueError as e:
+			parser_logger.warning("line didn't match: %s", e.args[1])
 
 	return parsed_efi
 
