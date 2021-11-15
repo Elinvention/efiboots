@@ -39,11 +39,11 @@ class TestParser(unittest.TestCase):
                                      'name': 'rEFInd Boot Manager',
                                      'path': '\\EFI\refind\refind_x64.efi',
                                      'parameters': ''})
-        key,value = efiboots.parse_efibootmgr_line('Boot0003* Windows Boot Manager\tHD(1,GPT,fda4f976-b250-4569-be80-0449804ab7c2,0x800,0x40000)/File(\EFI\Microsoft\Boot\bootmgfw.efi)WINDOWS.........x...B.C.D.O.B.J.E.C.T.=.{.9.d.e.a.8.6.2.c.-.5.c.d.d.-.4.e.7.0.-.a.c.c.1.-.f.3.2.b.3.4.4.d.4.7.9.5.}...o................')
+        key, value = efiboots.parse_efibootmgr_line('Boot0004  linux-surface (reboot=pci)	HD(1,GPT,8b824cbb-3248-4aeb-8ca0-3073b5a41bc4,0x800,0x82000)/File(\\vmlinuz-linux-surface)r.o.o.t.=.L.A.B.E.L.=.r.o.o.t. .i.n.i.t.r.d.=.i.n.t.e.l.-.u.c.o.d.e...i.m.g. .i.n.i.t.r.d.=.i.n.i.t.r.a.m.f.s.-.l.i.n.u.x.-.s.u.r.f.a.c.e...i.m.g. .z.s.w.a.p...e.n.a.b.l.e.d.=.0. .r.e.b.o.o.t.=.p.c.i.')
         self.assertEqual(key, 'entry')
-        self.assertDictEqual(value, {'num': '0003', 'active': True, 'name': 'Windows Boot Manager',
-                                    'path': '\\EFI\\Microsoft\\Boot\x08ootmgfw.efi',
-                                    'parameters': 'WINDOWS....x.BCDOBJECT={9dea862c-5cdd-4e70-acc1-f32b344d4795}.o.......'})
+        self.assertDictEqual(value, {'num': '0004', 'active': False, 'name': ' linux-surface (reboot=pci)',
+                                    'path': '\\vmlinuz-linux-surface',
+                                    'parameters': 'root=LABEL=root initrd=intel-ucode.img initrd=initramfs-linux-surface.img zswap.enabled=0 reboot=pci'})
 
     def test_efibootmgr_bootcurrent_parsing(self):
         key, value = efiboots.parse_efibootmgr_line('BootCurrent: 0001')
