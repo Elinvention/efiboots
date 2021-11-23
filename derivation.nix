@@ -1,9 +1,9 @@
-{ lib, gtk3, glib, gobject-introspection, efibootmgr, python3 }:
+{ lib, gtk4, glib, gobject-introspection, efibootmgr, python3 }:
 
 python3.pkgs.buildPythonApplication rec {
   name = "efiboots";
   src = ./.;
-  buildInputs = [ gtk3 glib gobject-introspection ];
+  buildInputs = [ gtk4 glib gobject-introspection ];
   propagatedBuildInputs = [ efibootmgr ] ++ (with python3.pkgs; [ pygobject3 ]);
 
   meta = with lib; {
