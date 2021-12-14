@@ -144,7 +144,7 @@ def try_decode_efibootmgr(code):
 	if code.endswith('.') and code.count('.') == 1:
 	    return code
 	if code.startswith('WINDOWS'):
-		return 'WINDOWS' + try_decode_efibootmgr(code[8:])
+		return 'WINDOWS' + try_decode_efibootmgr(code[len('WINDOWS'):])
 	try:
 		# Decode as UTF-16 (why efibootmgr displays it like that?)
 		code_bytes = bytearray(code, 'utf-8')
