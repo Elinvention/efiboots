@@ -421,7 +421,7 @@ class EFIWindow(Gtk.ApplicationWindow):
 		self.tree.append_column(Gtk.TreeViewColumn("BootNum", renderer_text, text=1))
 		self.tree.append_column(Gtk.TreeViewColumn("Name", renderer_text, text=2))
 		self.tree.append_column(Gtk.TreeViewColumn("Path", renderer_text, text=3))
-		self.tree.append_column(Gtk.TreeViewColumn("Parameters", renderer_text, text=4))
+		self.tree.append_column(Gtk.TreeViewColumn("Parameters", Gtk.CellRendererText(ellipsize=True), text=4))
 		self.tree.append_column(Gtk.TreeViewColumn("Active", renderer_check, active=5))
 		self.tree.append_column(Gtk.TreeViewColumn("NextBoot", renderer_radio, active=6))
 		for column in self.tree.get_columns():
