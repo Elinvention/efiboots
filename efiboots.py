@@ -77,11 +77,12 @@ def make_auto_detect_esp_with_findmnt(esp_mount_point) -> Callable:
 		cmd = ["findmnt", "--noheadings", "--output", "SOURCE,FSTYPE", "--mountpoint", esp_mount_point]
 
 		logging.debug("Running: %s", ' '.join(cmd))
-		source, fstype = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip().split()
-
-		if fstype == 'vfat':
-			disk, part = device_to_disk_part(source)
-			return disk, part
+		findmnt_output = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+		splitted = findmnt_output.strip().split()
+		for source, fstype in zip(splitted[::2], splitted[1::2]):
+			if fstype == 'vfat':
+				disk, part = device_to_disk_part(source)
+				return disk, part
 	return auto_detect_esp_with_findmnt
 
 
