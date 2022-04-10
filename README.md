@@ -22,7 +22,7 @@ If you are using Debian GNU/Linux:
 sudo apt install efibootmgr python3
 ```
 
-Not all distros install **pyhton-gobject** automatically with Python3, but it is
+Not all distros install **python-gobject** automatically with Python3, but it is
 required to run this script.
 
 For Arch users:
