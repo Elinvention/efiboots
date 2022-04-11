@@ -22,13 +22,13 @@ This project requires these libraries to be installed on your system:
 - gtk 4
 - python gobject
 
-### Debian GNU/Linux
+### Debian GNU/Linux, Ubuntu and other derivatives
 
 ```
-sudo apt install efibootmgr python3 libgtk-4-1
+sudo apt install efibootmgr python3 python3-gi libgtk-4-1
 ```
 
-### Arch
+### Arch, Manajaro and other derivatives
 
 ```
 sudo pacman -S --needed efibootmgr python3 python-gobject gtk4
