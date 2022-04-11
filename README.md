@@ -16,22 +16,25 @@ non-standard compliant implementations.
 
 ## Dependencies
 
-If you are using Debian GNU/Linux:
+This project requires these libraries to be installed on your system:
+- python 3
+- efibootmgr
+- gtk 4
+- python gobject
+
+### Debian GNU/Linux
 
 ```
-sudo apt install efibootmgr python3
+sudo apt install efibootmgr python3 libgtk-4-1
 ```
 
-Not all distros install **python-gobject** automatically with Python3, but it is
-required to run this script.
-
-For Arch users:
+### Arch
 
 ```
-sudo pacman -S --needed efibootmgr python3 python-gobject
+sudo pacman -S --needed efibootmgr python3 python-gobject gtk4
 ```
 
-With nix package manager:
+### nix
 
 ```
 nix-build
