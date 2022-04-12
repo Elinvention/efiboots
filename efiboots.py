@@ -54,7 +54,8 @@ def error_dialog(transient_for: Gtk.Window, message: str, title: str, on_respons
 
 many_esps_error_message = """
 This program detected more than one EFI System Partition on your system. You have to choose the right one.
-You can either mount your ESP on /boot/efi or pass the ESP block device via --efi (e.g. --efi=/dev/sda1).
+You can either mount your ESP on /boot/efi or pass the ESP block device via --disk and --part
+(e.g. --disk=/dev/sda --part=1).
 
 Choose wisely.
 """
