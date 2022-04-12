@@ -281,7 +281,8 @@ class EFIStore(Gtk.ListStore):
 		except subprocess.CalledProcessError as e:
 			logging.exception("Error running efibootmgr. Please check that it is correctly installed.")
 			error_dialog(transient_for=self.window, title="efibootmgr utility not installed!",
-						message="Please check that the efibootmgr utility is correctly installed, as this program requires its output.\n" + e,
+						message="Please check that the efibootmgr utility is correctly installed, as this program requires its output.\n" +
+							e.output,
 						on_response=lambda *_: sys.exit(-1))
 			return
 		except UnicodeDecodeError as e:
