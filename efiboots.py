@@ -40,7 +40,7 @@ def yes_no_dialog(parent, primary, secondary, on_response):
 
 def error_dialog(transient_for: Gtk.Window, message: str, title: str, on_response):
 	dialog = Gtk.MessageDialog(transient_for=transient_for, destroy_with_parent=True,
-			message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CANCEL,
+			message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CLOSE,
 			text=title, secondary_text=message, modal=True)
 	area = dialog.get_message_area()
 	child = area.get_first_child()
@@ -78,7 +78,11 @@ def make_auto_detect_esp_with_findmnt(esp_mount_point) -> Callable:
 		cmd = ["findmnt", "--noheadings", "--output", "SOURCE,FSTYPE", "--mountpoint", esp_mount_point]
 
 		logging.debug("Running: %s", ' '.join(cmd))
-		findmnt_output = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+		try:
+			findmnt_output = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+		except (FileNotFoundError, subprocess.CalledProcessError) as e:
+			logging.warning("Could not detect ESP with findmnt: %s", e)
+			return
 		splitted = findmnt_output.strip().split()
 		for source, fstype in zip(splitted[::2], splitted[1::2]):
 			if fstype == 'vfat':
@@ -99,7 +103,11 @@ def auto_detect_esp_with_lsblk() -> Tuple[str, str]:
 	cmd = ['lsblk', '--noheadings', '--pairs', '--paths', '--output', 'NAME,PARTTYPE,FSTYPE']
 
 	logging.debug("Running: %s", ' '.join(cmd))
-	res = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()
+	try:
+		res = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()
+	except (FileNotFoundError, subprocess.CalledProcessError) as e:
+		logging.warning("Could not detect ESP with lsblk: %s", e)
+		return
 	regex = re.compile('^NAME="(.+)" PARTTYPE="(.+)" FSTYPE="(.+)"$', re.MULTILINE)
 	esps = []
 	for match in regex.finditer(res):
@@ -117,23 +125,18 @@ def auto_detect_esp_with_lsblk() -> Tuple[str, str]:
 	return disk, part
 
 
-def auto_detect_esp():
+def auto_detect_esp(window):
 	methods = (make_auto_detect_esp_with_findmnt('/efi'), make_auto_detect_esp_with_findmnt('/boot/efi'),
 			   make_auto_detect_esp_with_findmnt('/boot'), auto_detect_esp_with_lsblk)
 	for find_esp_method in methods:
-		try:
-			result = find_esp_method()
-			if not result:
-				continue
-			disk, part = result
-			logging.info("Detected ESP on disk %s part %s", disk, part)
-			return disk, part
-		except subprocess.CalledProcessError:
-			pass
+		result = find_esp_method()
+		if not result:
+			continue
+		disk, part = result
+		logging.info("Detected ESP on disk %s part %s", disk, part)
+		return disk, part
 	logging.fatal("Can't auto-detect ESP! All methods failed.")
-	error_dialog(None, "Could not find an EFI System Partition. Ensure your ESP is mounted on /efi, "
-					"/boot/efi or /boot, that it has the correct partition type and vfat file system.",
-					"Can't auto-detect ESP!", lambda *_: sys.exit(-1))
+	return None, None
 
 
 efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+\/File\((.+)\)|.*\))(.*)$')
@@ -213,6 +216,11 @@ def parse_efibootmgr(boot) -> Dict:
 	return parsed_efi
 
 
+def execute_script_as_root(script):
+	logging.info("Running command `pkexec sh -c %s`", script)
+	subprocess.run(["pkexec", "sh", "-c", script], check=True, capture_output=True)
+
+
 class EFIStore(Gtk.ListStore):
 	ROW_CURRENT = 0
 	ROW_NUM = 1
@@ -222,9 +230,8 @@ class EFIStore(Gtk.ListStore):
 	ROW_ACTIVE = 5
 	ROW_NEXT = 6
 
-	def __init__(self, window, esp):
+	def __init__(self, window):
 		self.window = window
-		self.esp = esp
 		Gtk.ListStore.__init__(self, bool, str, str, str, str, bool, bool)
 		self.regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$')
 		self.clear()
@@ -278,11 +285,10 @@ class EFIStore(Gtk.ListStore):
 
 		try:
 			boot = run_efibootmgr()
-		except subprocess.CalledProcessError as e:
+		except (FileNotFoundError, subprocess.CalledProcessError) as e:
 			logging.exception("Error running efibootmgr. Please check that it is correctly installed.")
 			error_dialog(transient_for=self.window, title="efibootmgr utility not installed!",
-						message="Please check that the efibootmgr utility is correctly installed, as this program requires its output.\n" +
-							e.output,
+						message=f"Please check that the efibootmgr utility is correctly installed, as this program requires its output.\n{str(e)}",
 						on_response=lambda *_: sys.exit(-1))
 			return
 		except UnicodeDecodeError as e:
@@ -364,14 +370,6 @@ class EFIStore(Gtk.ListStore):
 					self.boot_order.remove(num)
 		super().remove(row_iter)
 
-	def apply_changes(self):
-		logging.info("Running command `pkexec sh -c %s`", str(self))
-		try:
-			subprocess.run(["pkexec", "sh", "-c", str(self)], check=True, capture_output=True)
-			self.refresh()
-		except subprocess.CalledProcessError as e:
-			error_dialog(self.window, f"{e}\n{e.stderr.decode()}", "Error", lambda d, r: d.close())
-
 	def pending_changes(self):
 		return (self.boot_next_initial != self.boot_next or
 				self.boot_order_initial != self.boot_order or self.boot_add or
@@ -379,37 +377,37 @@ class EFIStore(Gtk.ListStore):
 				or self.timeout != self.timeout_initial
 			)
 
-	def __str__(self):
-		esp = self.esp
-		str = ''
+	def to_script(self, disk, part):
+		esp = f"--disk {disk} --part {part}"
+		script = ''
 		for entry in self.boot_remove:
-			str += f'efibootmgr {esp} --delete-bootnum --bootnum {entry}\n'
+			script += f'efibootmgr {esp} --delete-bootnum --bootnum {entry}\n'
 		for _, label, loader, params in self.boot_add:
-			str += f'efibootmgr {esp} --create --label \'{label}\' --loader \'{loader}\' --unicode \'{params}\'\n'
+			script += f'efibootmgr {esp} --create --label \'{label}\' --loader \'{loader}\' --unicode \'{params}\'\n'
 		if self.boot_order != self.boot_order_initial:
-			str += f'efibootmgr {esp} --bootorder {",".join(self.boot_order)}\n'
+			script += f'efibootmgr {esp} --bootorder {",".join(self.boot_order)}\n'
 		if self.boot_next_initial != self.boot_next:
 			if self.boot_next is None:
-				str += f'efibootmgr {esp} --delete-bootnext\n'
+				script += f'efibootmgr {esp} --delete-bootnext\n'
 			else:
-				str += f'efibootmgr {esp} --bootnext {self.boot_next}\n'
+				script += f'efibootmgr {esp} --bootnext {self.boot_next}\n'
 		for entry in self.boot_active:
-			str += f'efibootmgr {esp} --bootnum {entry} --active\n'
+			script += f'efibootmgr {esp} --bootnum {entry} --active\n'
 		for entry in self.boot_inactive:
-			str += f'efibootmgr {esp} --bootnum {entry} --inactive\n'
+			script += f'efibootmgr {esp} --bootnum {entry} --inactive\n'
 		if self.timeout != self.timeout_initial:
-			str += f'efibootmgr {esp} --timeout {self.timeout}\n'
-		return str
+			script += f'efibootmgr {esp} --timeout {self.timeout}\n'
+		return script
 
 
 class EFIWindow(Gtk.ApplicationWindow):
-	def __init__(self, app, esp):
+	def __init__(self, app):
 		Gtk.Window.__init__(self, title="EFI boot manager", application=app)
 
 		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin_top=10, margin_start=10, margin_bottom=10, margin_end=10)
 		self.set_child(vbox)
 
-		self.store = EFIStore(self, esp)
+		self.store = EFIStore(self)
 		self.tree = Gtk.TreeView(model=self.store, vexpand=True)
 		vbox.append(self.tree)
 
@@ -476,11 +474,22 @@ class EFIWindow(Gtk.ApplicationWindow):
 
 		self.connect("close-request", self.on_close_request)
 		self.set_default_size(300, 260)
+
+	def query_system(self, disk, part):
+		if not (disk and part):
+			disk, part = auto_detect_esp(self)
+		if not (disk and part):
+			error_dialog(self, "Could not find an EFI System Partition. Ensure your ESP is mounted on /efi, "
+								"/boot/efi or /boot, that it has the correct partition type and vfat file system and that "
+								"either findmnt or lsblk commands are installed (should be by default on most distros).",
+								"Can't auto-detect ESP!", lambda *_: sys.exit(-1))
+			return
+		self.disk, self.part = disk, part
 		self.store.refresh()
 
 	def up(self, *args):
 		_, selection = self.tree.get_selection().get_selected()
-		if not selection == None:
+		if selection is not None:
 			next = self.store.iter_previous(selection)
 			if next:
 				self.store.swap(selection, next)
@@ -533,12 +542,22 @@ class EFIWindow(Gtk.ApplicationWindow):
 
 	def apply_changes(self, *args):
 		if self.store.pending_changes():
+			script = self.store.to_script(self.disk, self.part)
 			def on_response(dialog, response):
 				if response == Gtk.ResponseType.YES:
-					self.store.apply_changes()
+					try:
+						execute_script_as_root(script)
+						self.store.refresh()
+					except FileNotFoundError as e:
+						error_dialog(self, "The pkexec command from PolKit is "
+							"required to execute commands with elevated privileges.\n"
+							f"{e}", "pkexec not found", lambda d, r: d.close())
+					except subprocess.CalledProcessError as e:
+						error_dialog(self, f"{e}\n{e.stderr.decode()}", "Error", lambda d, r: d.close())
 				dialog.close()
 			dialog = yes_no_dialog(self, "Are you sure you want to continue?",
-							"Your changes are about to be written to EFI NVRAM.\nThe following commands will be run:\n" + str(self.store),
+							"Your changes are about to be written to EFI NVRAM.\n"
+							"The following commands will be run:\n"	+ script,
 							on_response)
 
 	def discard_warning(self, on_response, win):
@@ -568,11 +587,9 @@ class EFIWindow(Gtk.ApplicationWindow):
 
 
 def run(disk, part):
-	if not (disk and part):
-		disk, part = auto_detect_esp()
-
 	def on_activate(app):
-		win = EFIWindow(app, f"--disk {disk} --part {part}")
+		win = EFIWindow(app)
+		win.query_system(disk, part)
 		win.show()
 
 	app = Gtk.Application()
