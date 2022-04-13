@@ -408,7 +408,8 @@ class EFIWindow(Gtk.ApplicationWindow):
 		self.set_child(vbox)
 
 		self.store = EFIStore(self)
-		self.tree = Gtk.TreeView(model=self.store, vexpand=True)
+		self.tree = Gtk.TreeView(model=self.store, vexpand=True, has_tooltip=True)
+		self.tree.connect('query-tooltip', self.on_query_tooltip)
 		vbox.append(self.tree)
 
 		renderer_text = Gtk.CellRendererText()
@@ -424,9 +425,6 @@ class EFIWindow(Gtk.ApplicationWindow):
 		self.tree.append_column(Gtk.TreeViewColumn("Parameters", Gtk.CellRendererText(ellipsize=True), text=4))
 		self.tree.append_column(Gtk.TreeViewColumn("Active", renderer_check, active=5))
 		self.tree.append_column(Gtk.TreeViewColumn("NextBoot", renderer_radio, active=6))
-		for column in self.tree.get_columns():
-			column.set_resizable(True)
-			column.set_min_width(75)
 
 		hb = Gtk.HeaderBar()
 		self.set_titlebar(hb)
@@ -486,6 +484,26 @@ class EFIWindow(Gtk.ApplicationWindow):
 			return
 		self.disk, self.part = disk, part
 		self.store.refresh()
+
+	def on_query_tooltip(self, treeview, x, y, keyboard_mode, tooltip):
+		if keyboard_mode:
+			path, column = treeview.get_cursor()
+			if not path:
+				return False
+		else:
+			bin_x, bin_y = treeview.convert_widget_to_bin_window_coords(x, y)
+			result = treeview.get_path_at_pos(bin_x, bin_y)
+			if result is None:
+				return False
+			path, column, _, _ = result
+		if column.get_title() == "Parameters":
+			model_iter = treeview.get_model().get_iter(path)
+			text = treeview.get_model().get(model_iter, EFIStore.ROW_PARAMETERS)[0]
+			if text:
+				tooltip.set_text(text)
+				treeview.set_tooltip_cell(tooltip, path, column, None)
+				return True
+		return False
 
 	def up(self, *args):
 		_, selection = self.tree.get_selection().get_selected()
