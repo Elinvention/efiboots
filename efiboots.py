@@ -446,21 +446,25 @@ class EFIWindow(Gtk.ApplicationWindow):
 		up = btn_with_icon("go-up-symbolic")
 		down = btn_with_icon("go-down-symbolic")
 		new = btn_with_icon("list-add-symbolic")
+		duplicate = btn_with_icon("edit-copy-symbolic")
 		delete = btn_with_icon("list-remove-symbolic")
 
 		up.set_tooltip_text("move up")
 		down.set_tooltip_text("move down")
 		new.set_tooltip_text("create new entry")
+		duplicate.set_tooltip_text("duplicate entry")
 		delete.set_tooltip_text("delete entry")
 
 		hbox.append(up)
 		hbox.append(down)
 		hbox.append(new)
+		hbox.append(duplicate)
 		hbox.append(delete)
 
 		up.connect("clicked", self.up)
 		down.connect("clicked", self.down)
 		new.connect("clicked", self.new)
+		duplicate.connect("clicked", self.duplicate)
 		delete.connect("clicked", self.delete)
 
 		tbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -519,7 +523,7 @@ class EFIWindow(Gtk.ApplicationWindow):
 			if next:
 				self.store.swap(selection, next)
 
-	def new(self, *args):
+	def new(self, *args, duplicate = False):
 		dialog = Gtk.MessageDialog(transient_for=self, modal=True,
 				destroy_with_parent=True, message_type=Gtk.MessageType.QUESTION,
 				buttons=Gtk.ButtonsType.OK_CANCEL, text="Label is mandatory. It is the name that will show up in your EFI boot menu.\n\n"
@@ -534,9 +538,18 @@ class EFIWindow(Gtk.ApplicationWindow):
 		fields = ["label", "path", "parameters"]
 		entries = {}
 		grid = Gtk.Grid(row_spacing=2, column_spacing=8, halign=Gtk.Align.CENTER)
+		to_duplicate = {}
+		if (duplicate):
+			_, selection = self.tree.get_selection().get_selected()
+			if selection is not None:
+				to_duplicate["label"] = "Copy of "+self.tree.get_model().get(selection, EFIStore.ROW_NAME)[0]
+				to_duplicate["path"] = self.tree.get_model().get(selection, EFIStore.ROW_PATH)[0]
+				to_duplicate["parameters"] = self.tree.get_model().get(selection, EFIStore.ROW_PARAMETERS)[0]
 		for i, field in enumerate(fields):
 			entries[field] = Gtk.Entry()
 			entries[field].set_size_request(400, 0)
+			if field in to_duplicate:
+				entries[field].set_text(to_duplicate[field])
 			label = Gtk.Label(label=field.capitalize() + ":")
 			grid.attach(label, 0, i, 1, 1)
 			grid.attach(entries[field], 1, i, 1, 1)
@@ -551,6 +564,8 @@ class EFIWindow(Gtk.ApplicationWindow):
 		dialog.connect('response', on_response)
 		dialog.show()
 
+	def duplicate(self, *args):
+		self.new(args, duplicate=True)
 
 	def delete(self, *args):
 		_, selection = self.tree.get_selection().get_selected()
