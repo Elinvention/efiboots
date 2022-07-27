@@ -11,7 +11,7 @@ from gi.repository import Gtk, Gio
 
 
 def run_efibootmgr():
-	output = subprocess.run(["efibootmgr", "-v"], check=True, capture_output=True,
+	output = subprocess.run(["efibootmgr", "-u", "-v"], check=True, capture_output=True,
 				text=True).stdout.strip().split('\n')
 	logging.debug(repr(output))
 	return output
