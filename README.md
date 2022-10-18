@@ -25,7 +25,7 @@ This project requires these libraries to be installed on your system:
 ### Debian GNU/Linux, Ubuntu and other derivatives
 
 ```
-sudo apt install efibootmgr python3 python3-gi libgtk-4-1
+sudo apt install efibootmgr python3 python3-gi libgtk-4-1  gir1.2-gtk-4.0
 ```
 
 ### Arch, Manajaro and other derivatives
