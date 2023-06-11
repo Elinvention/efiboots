@@ -90,3 +90,7 @@ ENV/
 
 # jetbrains
 .idea
+
+# nix
+result/
+.envrc
