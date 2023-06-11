@@ -4,17 +4,12 @@ import re
 import logging
 import gi
 
-from typing import Union, Tuple, Callable, Dict
+from typing import Callable
+
+from efibootmgr import Efibootmgr
 
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gio
-
-
-def run_efibootmgr():
-	output = subprocess.run(["efibootmgr", "-v"], check=True, capture_output=True,
-				text=True).stdout.strip().split('\n')
-	logging.debug(repr(output))
-	return output
 
 
 def btn_with_icon(icon):
@@ -63,7 +58,7 @@ Choose wisely.
 
 device_regex = re.compile(r'^([a-z/]+[0-9a-z]*?)p?([0-9]+)$')
 
-def device_to_disk_part(device: str) -> Tuple[str, str]:
+def device_to_disk_part(device: str) -> tuple[str, str]:
 	try:
 		disk, part = device_regex.match(device).groups()
 		logging.debug("Device path %s split into %s and %s", device, disk, part)
@@ -73,7 +68,7 @@ def device_to_disk_part(device: str) -> Tuple[str, str]:
 
 
 def make_auto_detect_esp_with_findmnt(esp_mount_point) -> Callable:
-	def auto_detect_esp_with_findmnt() -> Tuple[str, str]:
+	def auto_detect_esp_with_findmnt() -> tuple[str, str] | None:
 		# findmnt --noheadings --output SOURCE --mountpoint /boot/efi
 		cmd = ["findmnt", "--noheadings", "--output", "SOURCE,FSTYPE", "--mountpoint", esp_mount_point]
 
@@ -91,7 +86,7 @@ def make_auto_detect_esp_with_findmnt(esp_mount_point) -> Callable:
 	return auto_detect_esp_with_findmnt
 
 
-def auto_detect_esp_with_lsblk() -> Tuple[str, str]:
+def auto_detect_esp_with_lsblk() -> tuple[str, str] | None:
 	"""
 	Finds the ESP by scanning the partition table. It should work with GPT (tested) and MBR (not tested).
 	This method doesn't require the ESP to be mounted.
@@ -139,83 +134,6 @@ def auto_detect_esp(window):
 	return None, None
 
 
-efibootmgr_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+\/File\((.+)\)|.*\))(.*)$')
-
-
-def try_decode_efibootmgr(code):
-	if '.' not in code:
-		return code
-	if code.endswith('.') and code.count('.') == 1:
-	    return code
-	if code.startswith('WINDOWS'):
-		return 'WINDOWS' + try_decode_efibootmgr(code[len('WINDOWS'):])
-	try:
-		# Decode as UTF-16 (why efibootmgr displays it like that?)
-		code_bytes = bytearray(code, 'utf-8')
-		for i, byte in enumerate(code_bytes):
-			if i % 2 == 1 and byte == ord('.'):
-				code_bytes[i] = 0
-		decoded = code_bytes.decode('utf-16')
-		return decoded
-	except UnicodeDecodeError as e:
-		logging.warning("Could not decode '%s': %s", code, e)
-		return code
-
-
-def parse_efibootmgr_line(line: str) -> Tuple:
-	parser_logger = logging.getLogger("parser")
-	match = efibootmgr_regex.match(line)
-
-	if match and match.group(1) and match.group(3):
-		num, active, name, path, params = match.groups()
-		params = try_decode_efibootmgr(params)
-		parsed = dict(num=num, active=active is not None, name=name,
-					path=path if path else '', parameters=params)
-		parser_logger.debug("Entry: %s", parsed)
-		return 'entry', parsed
-	if line.startswith("BootOrder"):
-		parsed = line.split(':')[1].strip().split(',')
-		parser_logger.debug("BootOrder: %s", parsed)
-		return 'boot_order', parsed
-	if line.startswith("BootNext"):
-		parsed = line.split(':')[1].strip()
-		parser_logger.debug("BootNext: %s", parsed)
-		return 'boot_next', parsed
-	if line.startswith("BootCurrent"):
-		parsed = line.split(':')[1].strip()
-		parser_logger.debug("BootCurrent: %s", parsed)
-		return 'boot_current', parsed
-	if line.startswith("Timeout"):
-		parsed = int(line.split(':')[1].split()[0].strip())
-		parser_logger.debug("Timeout: %s", parsed)
-		return 'timeout', parsed
-
-	raise ValueError("line didn't match", repr(line))
-
-
-def parse_efibootmgr(boot) -> Dict:
-	parser_logger = logging.getLogger("parser")
-	parsed_efi = {
-		'entries': [],
-		'boot_order': [],
-		'boot_next': None,
-		'boot_current': None,
-		'timeout': None
-	}
-
-	for line in boot:
-		try:
-			key, value = parse_efibootmgr_line(line)
-			if key == 'entry':
-				parsed_efi['entries'].append(value)
-			else:
-				parsed_efi[key] = value
-		except ValueError as e:
-			parser_logger.warning("line didn't match: %s", e.args[1])
-
-	return parsed_efi
-
-
 def execute_script_as_root(script):
 	logging.info("Running command `pkexec sh -c %s`", script)
 	subprocess.run(["pkexec", "sh", "-c", script], check=True, capture_output=True)
@@ -233,10 +151,16 @@ class EFIStore(Gtk.ListStore):
 	def __init__(self, window):
 		self.window = window
 		Gtk.ListStore.__init__(self, bool, str, str, str, str, bool, bool)
-		self.regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+File\((.+)\))?.*$')
+		self._efibootmgr = None
 		self.clear()
 
-	def reorder(self):
+	@property
+	def efibootmgr(self):
+		if self._efibootmgr is None:
+			self._efibootmgr = Efibootmgr.get_instance()
+		return self._efibootmgr
+
+	def reorder(self, **kwargs):
 		reorder_logger = logging.getLogger("reorder")
 		new_order = []
 
@@ -247,7 +171,7 @@ class EFIStore(Gtk.ListStore):
 			else:
 				new_order.append(index)
 
-		for i,row in enumerate(self):
+		for i, row in enumerate(self):
 			if i not in new_order:
 				reorder_logger.warning('%s is not in BootOrder, appending to the list', row[EFIStore.ROW_NUM])
 				new_order.append(i)
@@ -284,7 +208,7 @@ class EFIStore(Gtk.ListStore):
 		self.clear()
 
 		try:
-			boot = run_efibootmgr()
+			boot = self.efibootmgr.run()
 		except (FileNotFoundError, subprocess.CalledProcessError) as e:
 			logging.exception("Error running efibootmgr. Please check that it is correctly installed.")
 			error_dialog(transient_for=self.window, title="efibootmgr utility not installed!",
@@ -298,7 +222,7 @@ class EFIStore(Gtk.ListStore):
 			return
 
 		if boot is not None:
-			parsed_efi = parse_efibootmgr(boot)
+			parsed_efi = self.efibootmgr.parse(boot)
 			for entry in parsed_efi['entries']:
 				row = self.append()
 				self.set_value(row, EFIStore.ROW_CURRENT, entry['num'] == parsed_efi['boot_current'])
@@ -551,7 +475,6 @@ class EFIWindow(Gtk.ApplicationWindow):
 		dialog.connect('response', on_response)
 		dialog.show()
 
-
 	def delete(self, *args):
 		_, selection = self.tree.get_selection().get_selected()
 		index = self.tree.get_selection().get_selected_rows()[1][0].get_indices()[0]
@@ -561,6 +484,7 @@ class EFIWindow(Gtk.ApplicationWindow):
 	def apply_changes(self, *args):
 		if self.store.pending_changes():
 			script = self.store.to_script(self.disk, self.part)
+
 			def on_response(dialog, response):
 				if response == Gtk.ResponseType.YES:
 					try:
@@ -593,7 +517,6 @@ class EFIWindow(Gtk.ApplicationWindow):
 			dialog.close()
 		if not self.discard_warning(on_response, self):
 			self.store.refresh()
-
 
 	def on_close_request(self, win):
 		def on_response(dialog, response):
