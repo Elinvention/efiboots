@@ -183,6 +183,7 @@
   <template class="GtkListItem">
     <property name="child">
       <object class="GtkSwitch">
+        <property name="sensitive">False</property>
         <binding name="active">
           <lookup name="active" type="EfibootRowModel">
             <lookup name="item">GtkListItem</lookup>
@@ -212,6 +213,7 @@
     <property name="child">
       <object class="GtkCheckButton">
         <property name="group">next_group</property>
+        <property name="sensitive">False</property>
         <property name="css-classes">radio</property>
         <binding name="active">
           <lookup name="next" type="EfibootRowModel">
@@ -280,6 +282,11 @@
                 <signal name="value-changed" handler="on_value_changed_timeout"/>
               </object>
             </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkLabel">
+            <property name="label">WARNING: The active and boot next columns are a work in progress and are currently not usable. GTK is hard!</property>
           </object>
         </child>
       </object>
