@@ -319,7 +319,7 @@ class EfibootsListStore(Gio.ListStore):
                 or self.timeout != self.timeout_initial
                 )
 
-    def to_script(self, disk, part):
+    def to_script(self, disk, part, reboot):
         esp = f"--disk {disk} --part {part}"
         script = ''
         for entry in self.boot_remove:
@@ -339,6 +339,8 @@ class EfibootsListStore(Gio.ListStore):
             script += f'efibootmgr {esp} --bootnum {entry} --inactive\n'
         if self.timeout != self.timeout_initial:
             script += f'efibootmgr {esp} --timeout {self.timeout}\n'
+        if reboot:
+            script += "reboot\n"
         return script
 
 
@@ -455,7 +457,7 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
     @Gtk.Template.Callback()
     def on_clicked_save(self, button: Gtk.Button):
         if self.model.pending_changes():
-            script = self.model.to_script(self.disk, self.part)
+            script = self.model.to_script(self.disk, self.part, button.get_buildable_id() == "reboot_button")
 
             def on_response(dialog, response):
                 if response == Gtk.ResponseType.YES:
@@ -470,10 +472,31 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
                         error_dialog(self, f"{e}\n{e.stderr.decode()}", "Error", lambda d, r: d.close())
                 dialog.close()
 
-            dialog = yes_no_dialog(self, "Are you sure you want to continue?",
-                                   "Your changes are about to be written to EFI NVRAM.\n"
-                                   "The following commands will be run:\n" + script,
-                                   on_response)
+            yes_no_dialog(self, "Are you sure you want to continue?",
+                          "Your changes are about to be written to EFI NVRAM.\n"
+                          "The following commands will be run:\n\n" + script,
+                          on_response)
+
+    @Gtk.Template.Callback()
+    def on_clicked_reboot(self, button: Gtk.Button):
+        if self.model.pending_changes():
+            self.on_clicked_save(button)
+        else:
+            def on_response(response_dialog, response):
+                if response == Gtk.ResponseType.YES:
+                    try:
+                        execute_script_as_root("reboot\n")
+                    except FileNotFoundError as e:
+                        error_dialog(self, "The pkexec command from PolKit is "
+                                           "required to execute commands with elevated privileges.\n"
+                                           f"{e}", "pkexec not found", lambda d, r: d.close())
+                    except subprocess.CalledProcessError as e:
+                        error_dialog(self, f"{e}\n{e.stderr.decode()}", "Error", lambda d, r: d.close())
+                response_dialog.close()
+
+            yes_no_dialog(self, "Are you sure you want to reboot?",
+                          "Press OK to reboot your computer.\n",
+                          on_response)
 
     def discard_warning(self, on_response, win: Gtk.Window):
         if self.model.pending_changes():
@@ -497,8 +520,8 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
     def on_value_changed_timeout(self, spin: Gtk.SpinButton):
         self.model.timeout = spin.get_value_as_int()
 
-    #@Gtk.Template.Callback()
-    #def on_toggled_active(self, check: Gtk.CheckButton, checked_row: EfibootRowModel):
+    # @Gtk.Template.Callback()
+    # def on_toggled_active(self, check: Gtk.CheckButton, checked_row: EfibootRowModel):
     #    print(check, checked_row)
     #    self.model.change_active(check, checked_row)
 

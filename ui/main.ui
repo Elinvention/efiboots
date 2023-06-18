@@ -300,6 +300,13 @@
             <signal name="clicked" handler="on_clicked_save"/>
           </object>
         </child>
+        <child type="end">
+          <object class="GtkButton" id="reboot_button">
+            <property name="icon-name">system-reboot-symbolic</property>
+            <property name="tooltip-text">Save and reboot</property>
+            <signal name="clicked" handler="on_clicked_reboot"/>
+          </object>
+        </child>
       </object>
     </child>
   </template>
