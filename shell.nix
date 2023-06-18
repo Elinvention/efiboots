@@ -16,8 +16,7 @@ in pkgs.mkShell rec {
 
     # Those are dependencies that we would like to use from nixpkgs, which will
     # add them to PYTHONPATH and thus make them accessible from within the venv.
-    pythonPackages.numpy
-    pythonPackages.requests
+    pythonPackages.pygobject3
 
     # In this particular example, in order to compile any binary extensions they may
     # require, the Python modules listed in the hypothetical requirements.txt need
@@ -36,7 +35,6 @@ in pkgs.mkShell rec {
     gobject-introspection
     gtk4
     glib
-    python3.pkgs.pygobject3
 
     jetbrains.pycharm-professional
   ];
