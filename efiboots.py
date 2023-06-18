@@ -9,7 +9,7 @@ from typing import Callable
 from efibootmgr import Efibootmgr
 
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gio
+from gi.repository import Gtk, Gio, GObject
 
 
 def btn_with_icon(icon):
@@ -140,20 +140,65 @@ def execute_script_as_root(script):
     subprocess.run(["pkexec", "sh", "-c", script], check=True, capture_output=True)
 
 
-class EFIStore(Gtk.ListStore):
-    ROW_CURRENT = 0
-    ROW_NUM = 1
-    ROW_NAME = 2
-    ROW_PATH = 3
-    ROW_PARAMETERS = 4
-    ROW_ACTIVE = 5
-    ROW_NEXT = 6
+class CustomBuilderScope(GObject.GObject, Gtk.BuilderScope):
+    __gtype_name__ = "CustomBuilderScope"
 
-    def __init__(self, window):
+    def do_create_closure(self, builder, func_name, flags, obj):
+        print(builder, func_name, flags, obj)
+
+
+class EfibootRowModel(GObject.Object):
+    __gtype_name__ = "EfibootRowModel"
+
+    current = GObject.Property(type=bool, default=False)
+    num = GObject.Property(type=str)
+    name = GObject.Property(type=str)
+    path = GObject.Property(type=str)
+    parameters = GObject.Property(type=str)
+    active = GObject.Property(type=bool, default=True)
+    next = GObject.Property(type=bool, default=False)
+
+    def __init__(self, current: bool, num: str, name: str, path: str, parameters: str, active: bool, next: bool):
+        super().__init__()
+        self.current = current
+        self.num = num
+        self.name = name
+        self.path = path
+        self.parameters = parameters
+        self.active = active
+        self.next = next
+
+        self.radio_buttons_group = Gtk.CheckButton()
+
+    def __str__(self):
+        return f"EfibootModelRow {'current' if self.current else ''} num{self.num} {self.name} {self.path}" \
+               f" {self.parameters} {'active' if self.active else 'inactive'} {'next' if self.next else ''}"
+
+
+class EfibootsListStore(Gio.ListStore):
+    def __init__(self, window: 'EfibootsMainWindow'):
         self.window = window
-        Gtk.ListStore.__init__(self, bool, str, str, str, str, bool, bool)
+        super().__init__(item_type=EfibootRowModel)
         self._efibootmgr = None
-        self.clear()
+
+        self.boot_order = []
+        self.boot_order_initial = []
+        self.boot_next = None
+        self.boot_next_initial = None
+        self.boot_active = set()
+        self.boot_inactive = set()
+        self.boot_add = {}
+        self.boot_remove = set()
+        self.boot_current = None
+        self.timeout = None
+        self.timeout_initial = None
+        self.edit_parameters = set()
+        self.edit_loader = set()
+        self.edit_name = set()
+
+    def __str__(self):
+        return f"next: {self.boot_next} order: {self.boot_order} add: {self.boot_add} rem: {self.boot_remove} " \
+               f"active: {self.boot_active} inactive: {self.boot_inactive} timeout: {self.timeout}"
 
     @property
     def efibootmgr(self):
@@ -161,49 +206,30 @@ class EFIStore(Gtk.ListStore):
             self._efibootmgr = Efibootmgr.get_instance()
         return self._efibootmgr
 
-    def reorder(self, **kwargs):
-        reorder_logger = logging.getLogger("reorder")
-        new_order = []
-
-        for bootnum in self.boot_order:
-            index = self.index_num(bootnum)
-            if index is None:
-                reorder_logger.warning('%s is in BootOrder, but it\'s not in the list', bootnum)
-            else:
-                new_order.append(index)
-
-        for i, row in enumerate(self):
-            if i not in new_order:
-                reorder_logger.warning('%s is not in BootOrder, appending to the list', row[EFIStore.ROW_NUM])
-                new_order.append(i)
-
-        reorder_logger.debug("New order is: %s", new_order)
-
-        assert (len(new_order) == len(self))
-        super().reorder(new_order)
-
     def swap(self, a, b):
-        super().swap(a, b)
-        self.boot_order = [x[EFIStore.ROW_NUM] for x in self]
+        self.boot_order[a], self.boot_order[b] = self.boot_order[b], self.boot_order[a]
 
     def index_num(self, num):
         for i, row in enumerate(self):
-            if row[EFIStore.ROW_NUM] == num:
+            if row.num == num:
                 return i
 
     def clear(self):
-        super().clear()
+        self.remove_all()
         self.boot_order = []
         self.boot_order_initial = []
         self.boot_next = None
         self.boot_next_initial = None
-        self.boot_active = []
-        self.boot_inactive = []
-        self.boot_add = []
-        self.boot_remove = []
+        self.boot_active = set()
+        self.boot_inactive = set()
+        self.boot_add = {}
+        self.boot_remove = set()
         self.boot_current = None
         self.timeout = None
         self.timeout_initial = None
+        self.edit_parameters = set()
+        self.edit_loader = set()
+        self.edit_name = set()
 
     def refresh(self, *args):
         self.clear()
@@ -225,77 +251,68 @@ class EFIStore(Gtk.ListStore):
         if boot is not None:
             parsed_efi = self.efibootmgr.parse(boot)
             for entry in parsed_efi['entries']:
-                row = self.append()
-                self.set_value(row, EFIStore.ROW_CURRENT, entry['num'] == parsed_efi['boot_current'])
-                self.set_value(row, EFIStore.ROW_NUM, entry['num'])
-                self.set_value(row, EFIStore.ROW_NAME, entry['name'])
-                self.set_value(row, EFIStore.ROW_PATH, entry['path'])
-                self.set_value(row, EFIStore.ROW_PARAMETERS, entry['parameters'])
-                self.set_value(row, EFIStore.ROW_ACTIVE, entry['active'])
-                self.set_value(row, EFIStore.ROW_NEXT, entry['num'] == parsed_efi['boot_next'])
-            self.boot_order = self.boot_order_initial = parsed_efi['boot_order']
+                row = EfibootRowModel(entry['num'] == parsed_efi['boot_current'],
+                                      entry['num'],
+                                      entry['name'],
+                                      entry['path'],
+                                      entry['parameters'],
+                                      entry['active'],
+                                      entry['num'] == parsed_efi['boot_next'])
+                self.append(row)
+
+            self.boot_order_initial = parsed_efi['boot_order']
+            self.boot_order = list(self.boot_order_initial)
             self.boot_next = self.boot_next_initial = parsed_efi['boot_next']
             self.boot_current = parsed_efi['boot_current']
             self.timeout = self.timeout_initial = parsed_efi['timeout']
             self.window.timeout_spin.set_value(self.timeout)
-            self.reorder()
 
-    def change_boot_next(self, widget, path):
-        selected_path = Gtk.TreePath(path)
-        for row in self:
-            if row.path == selected_path:
-                row[EFIStore.ROW_NEXT] = not row[EFIStore.ROW_NEXT]
-                self.boot_next = row[EFIStore.ROW_NUM] if row[EFIStore.ROW_NEXT] else None
+            self.sort(self.sort_by_boot_order)
+
+    def sort_by_boot_order(self, row1: EfibootRowModel, row2: EfibootRowModel) -> int:
+        row1_index = self.boot_order.index(row1.num)
+        row2_index = self.boot_order.index(row2.num)
+        return row1_index - row2_index
+
+    def change_boot_next(self, widget, checked_row: EfibootRowModel):
+        checked_row.next = not checked_row.next
+        self.boot_next = checked_row.num if checked_row.next else None
+
+    def change_active(self, widget: Gtk.CheckButton, checked_row: EfibootRowModel):
+        checked_row.active = widget.get_active()
+        num = checked_row.num
+        if checked_row.active:
+            if num in self.boot_inactive:
+                self.boot_inactive.remove(num)
             else:
-                row[EFIStore.ROW_NEXT] = False
+                self.boot_active.add(num)
+        else:
+            if num in self.boot_active:
+                self.boot_active.remove(num)
+            else:
+                self.boot_inactive.add(num)
 
-    def change_active(self, widget, path):
-        selected_path = Gtk.TreePath(path)
-        for row in self:
-            if row.path == selected_path:
-                row[EFIStore.ROW_ACTIVE] = not row[EFIStore.ROW_ACTIVE]
-                num = row[EFIStore.ROW_NUM]
-                if row[EFIStore.ROW_ACTIVE]:
-                    if num in self.boot_inactive:
-                        self.boot_inactive.remove(num)
-                    else:
-                        self.boot_active.append(num)
-                else:
-                    if num in self.boot_active:
-                        self.boot_active.remove(num)
-                    else:
-                        self.boot_inactive.append(num)
-
-    def change_timeout(self, timeout_spin):
-        self.timeout = timeout_spin.get_value_as_int()
-
-    def fill_row(self, row, current, num, name, path, parameters, active, next):
-        self.set_value(row, EFIStore.ROW_CURRENT, current)
-        self.set_value(row, EFIStore.ROW_NUM, num)
-        self.set_value(row, EFIStore.ROW_NAME, name)
-        self.set_value(row, EFIStore.ROW_PATH, path)
-        self.set_value(row, EFIStore.ROW_PARAMETERS, parameters)
-        self.set_value(row, EFIStore.ROW_ACTIVE, active)
-        self.set_value(row, EFIStore.ROW_NEXT, next)
+        logging.debug(checked_row, self.boot_active, self.boot_inactive)
 
     def add(self, label, path, parameters):
         new_num = "NEW{:d}".format(len(self.boot_add))
-        row = self.insert(0)
-        self.fill_row(row, False, new_num, label, path, parameters, True, False)
-        self.boot_add.append((new_num, label, path, parameters))
+        row = EfibootRowModel(False, new_num, label, path, parameters, True, False)
+        self.append(row)
+        self.boot_add[new_num] = (label, path, parameters)
 
-    def remove(self, row_index, row_iter):
-        num = self.get_value(row_iter, EFIStore.ROW_NUM)
-        if num.startswith('NEW'):
-            self.boot_add = [entry for entry in self.boot_add if entry[0] != num]
-        else:
-            for row in self:
-                if row[EFIStore.ROW_NUM] == num:
-                    self.boot_remove.append(num)
-                    self.boot_order.remove(num)
-        super().remove(row_iter)
+    def remove(self, position: int):
+        item: EfibootRowModel | None = self.get_item(position)
+        if item is not None:
+            num: str = item.num
+            if num.startswith('NEW'):
+                del self.boot_add[num]
+            else:
+                self.boot_remove.add(num)
+                self.boot_order.remove(num)
+            super().remove(position)
 
     def pending_changes(self):
+        logging.debug("%s", self)
         return (self.boot_next_initial != self.boot_next or
                 self.boot_order_initial != self.boot_order or self.boot_add or
                 self.boot_remove or self.boot_active or self.boot_inactive
@@ -307,7 +324,7 @@ class EFIStore(Gtk.ListStore):
         script = ''
         for entry in self.boot_remove:
             script += f'efibootmgr {esp} --delete-bootnum --bootnum {entry}\n'
-        for _, label, loader, params in self.boot_add:
+        for label, loader, params in self.boot_add.values():
             script += f'efibootmgr {esp} --create --label \'{label}\' --loader \'{loader}\' --unicode \'{params}\'\n'
         if self.boot_order != self.boot_order_initial:
             script += f'efibootmgr {esp} --bootorder {",".join(self.boot_order)}\n'
@@ -325,79 +342,25 @@ class EFIStore(Gtk.ListStore):
         return script
 
 
-class EFIWindow(Gtk.ApplicationWindow):
+@Gtk.Template(filename=f'ui/main.ui')
+class EfibootsMainWindow(Gtk.ApplicationWindow):
+    __gtype_name__ = "EfibootsMainWindow"
+
+    column_view: Gtk.ColumnView = Gtk.Template.Child()
+
+    up: Gtk.Button = Gtk.Template.Child()
+    down: Gtk.Button = Gtk.Template.Child()
+    add: Gtk.Button = Gtk.Template.Child()
+    remove: Gtk.Button = Gtk.Template.Child()
+
+    timeout_spin: Gtk.SpinButton = Gtk.Template.Child()
+
     def __init__(self, app):
         Gtk.Window.__init__(self, title="EFI boot manager", application=app)
-
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin_top=10, margin_start=10,
-                       margin_bottom=10, margin_end=10)
-        self.set_child(vbox)
-
-        self.store = EFIStore(self)
-        self.tree = Gtk.TreeView(model=self.store, vexpand=True, has_tooltip=True)
-        self.tree.connect('query-tooltip', self.on_query_tooltip)
-        vbox.append(self.tree)
-
-        renderer_text = Gtk.CellRendererText()
-        renderer_check = Gtk.CellRendererToggle(radio=False)
-        renderer_radio = Gtk.CellRendererToggle(radio=True)
-        renderer_boot_current = Gtk.CellRendererToggle(radio=True, activatable=False)
-        renderer_check.connect("toggled", self.store.change_active)
-        renderer_radio.connect("toggled", self.store.change_boot_next)
-        self.tree.append_column(Gtk.TreeViewColumn("BootCurrent", renderer_boot_current, active=0))
-        self.tree.append_column(Gtk.TreeViewColumn("BootNum", renderer_text, text=1))
-        self.tree.append_column(Gtk.TreeViewColumn("Name", renderer_text, text=2))
-        self.tree.append_column(Gtk.TreeViewColumn("Path", renderer_text, text=3))
-        self.tree.append_column(Gtk.TreeViewColumn("Parameters", Gtk.CellRendererText(ellipsize=True), text=4))
-        self.tree.append_column(Gtk.TreeViewColumn("Active", renderer_check, active=5))
-        self.tree.append_column(Gtk.TreeViewColumn("NextBoot", renderer_radio, active=6))
-
-        hb = Gtk.HeaderBar()
-        self.set_titlebar(hb)
-
-        clear_btn = btn_with_icon("edit-clear-all-symbolic")
-        clear_btn.set_tooltip_text("clear all")
-        clear_btn.connect("clicked", self.on_clicked_discard_changes)
-        hb.pack_end(clear_btn)
-
-        write_btn = btn_with_icon("document-save-symbolic")
-        write_btn.connect("clicked", self.apply_changes)
-        write_btn.set_tooltip_text("save")
-        hb.pack_end(write_btn)
-
-        hbox = Gtk.Box(hexpand=True)
-        hbox.add_css_class("linked")
-        vbox.append(hbox)
-
-        up = btn_with_icon("go-up-symbolic")
-        down = btn_with_icon("go-down-symbolic")
-        new = btn_with_icon("list-add-symbolic")
-        delete = btn_with_icon("list-remove-symbolic")
-
-        up.set_tooltip_text("move up")
-        down.set_tooltip_text("move down")
-        new.set_tooltip_text("create new entry")
-        delete.set_tooltip_text("delete entry")
-
-        hbox.append(up)
-        hbox.append(down)
-        hbox.append(new)
-        hbox.append(delete)
-
-        up.connect("clicked", self.up)
-        down.connect("clicked", self.down)
-        new.connect("clicked", self.new)
-        delete.connect("clicked", self.delete)
-
-        tbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        tbox.append(Gtk.Label(label="Boot manager timeout in seconds:"))
-        self.timeout_spin = Gtk.SpinButton.new_with_range(0, 999, 1)
-        self.timeout_spin.connect('value_changed', self.store.change_timeout)
-        tbox.append(self.timeout_spin)
-        vbox.append(tbox)
-
-        self.connect("close-request", self.on_close_request)
-        self.set_default_size(300, 260)
+        self.model = EfibootsListStore(self)
+        self.selection_model = Gtk.SingleSelection(model=self.model)
+        self.column_view.set_model(self.selection_model)
+        self.timeout_spin.set_adjustment(Gtk.Adjustment(lower=0, step_increment=1, upper=999))
 
     def query_system(self, disk, part):
         if not (disk and part):
@@ -409,7 +372,7 @@ class EFIWindow(Gtk.ApplicationWindow):
                          "Can't auto-detect ESP!", lambda *_: sys.exit(-1))
             return
         self.disk, self.part = disk, part
-        self.store.refresh()
+        self.model.refresh()
 
     def on_query_tooltip(self, treeview, x, y, keyboard_mode, tooltip):
         if keyboard_mode:
@@ -424,28 +387,27 @@ class EFIWindow(Gtk.ApplicationWindow):
             path, column, _, _ = result
         if column.get_title() == "Parameters":
             model_iter = treeview.get_model().get_iter(path)
-            text = treeview.get_model().get(model_iter, EFIStore.ROW_PARAMETERS)[0]
+            text = treeview.get_model().get(model_iter, EfibootsListStore.ROW_PARAMETERS)[0]
             if text:
                 tooltip.set_text(text)
                 treeview.set_tooltip_cell(tooltip, path, column, None)
                 return True
         return False
 
-    def up(self, *args):
-        _, selection = self.tree.get_selection().get_selected()
-        if selection is not None:
-            next = self.store.iter_previous(selection)
-            if next:
-                self.store.swap(selection, next)
+    @Gtk.Template.Callback()
+    def on_clicked_up(self, button: Gtk.Button):
+        index = self.selection_model.get_selected()
+        self.model.swap(index, max(index - 1, 0))
+        self.model.sort(self.model.sort_by_boot_order)
 
-    def down(self, *args):
-        _, selection = self.tree.get_selection().get_selected()
-        if selection is not None:
-            next = self.store.iter_next(selection)
-            if next:
-                self.store.swap(selection, next)
+    @Gtk.Template.Callback()
+    def on_clicked_down(self, button: Gtk.Button):
+        index = self.selection_model.get_selected()
+        self.model.swap(index, min(index + 1, len(self.model) - 1))
+        self.model.sort(self.model.sort_by_boot_order)
 
-    def new(self, *args):
+    @Gtk.Template.Callback()
+    def on_clicked_add(self, button: Gtk.Button):
         dialog = Gtk.MessageDialog(transient_for=self, modal=True,
                                    destroy_with_parent=True, message_type=Gtk.MessageType.QUESTION,
                                    buttons=Gtk.ButtonsType.OK_CANCEL,
@@ -474,27 +436,32 @@ class EFIWindow(Gtk.ApplicationWindow):
         def on_response(dialog, response):
             label, path, parameters = map(lambda field: entries[field].get_text(), fields)
             if response == Gtk.ResponseType.OK:
-                self.store.add(label, path, parameters)
+                self.model.add(label, path, parameters)
+                self.remove.set_sensitive(True)
             dialog.close()
 
         dialog.connect('response', on_response)
         dialog.show()
 
-    def delete(self, *args):
-        _, selection = self.tree.get_selection().get_selected()
-        index = self.tree.get_selection().get_selected_rows()[1][0].get_indices()[0]
-        if selection is not None:
-            self.store.remove(index, selection)
+    @Gtk.Template.Callback()
+    def on_clicked_remove(self, button: Gtk.Button):
+        row = self.selection_model.get_selected_item()
+        index = self.selection_model.get_selected()
+        print(f"Removing {row} at {index}")
+        self.model.remove(index)
+        if len(self.model) == 0:
+            button.set_sensitive(False)
 
-    def apply_changes(self, *args):
-        if self.store.pending_changes():
-            script = self.store.to_script(self.disk, self.part)
+    @Gtk.Template.Callback()
+    def on_clicked_save(self, button: Gtk.Button):
+        if self.model.pending_changes():
+            script = self.model.to_script(self.disk, self.part)
 
             def on_response(dialog, response):
                 if response == Gtk.ResponseType.YES:
                     try:
                         execute_script_as_root(script)
-                        self.store.refresh()
+                        self.model.refresh()
                     except FileNotFoundError as e:
                         error_dialog(self, "The pkexec command from PolKit is "
                                            "required to execute commands with elevated privileges.\n"
@@ -508,24 +475,35 @@ class EFIWindow(Gtk.ApplicationWindow):
                                    "The following commands will be run:\n" + script,
                                    on_response)
 
-    def discard_warning(self, on_response, win):
-        if self.store.pending_changes():
-            return yes_no_dialog(self, "Are you sure you want to discard?",
+    def discard_warning(self, on_response, win: Gtk.Window):
+        if self.model.pending_changes():
+            return yes_no_dialog(win, "Are you sure you want to discard?",
                                  "Your changes will be lost if you don't save them.",
                                  on_response)
         else:
             return None
 
-    def on_clicked_discard_changes(self, button):
+    @Gtk.Template.Callback()
+    def on_clicked_reset(self, button: Gtk.Button):
         def on_response(dialog, response):
             if response == Gtk.ResponseType.YES:
-                self.store.refresh()
+                self.model.refresh()
             dialog.close()
 
         if not self.discard_warning(on_response, self):
-            self.store.refresh()
+            self.model.refresh()
 
-    def on_close_request(self, win):
+    @Gtk.Template.Callback()
+    def on_value_changed_timeout(self, spin: Gtk.SpinButton):
+        self.model.timeout = spin.get_value_as_int()
+
+    #@Gtk.Template.Callback()
+    #def on_toggled_active(self, check: Gtk.CheckButton, checked_row: EfibootRowModel):
+    #    print(check, checked_row)
+    #    self.model.change_active(check, checked_row)
+
+    @Gtk.Template.Callback()
+    def on_close_request(self, win: Gtk.ApplicationWindow):
         def on_response(dialog, response):
             dialog.close()
             if response == Gtk.ResponseType.YES:
@@ -537,10 +515,10 @@ class EFIWindow(Gtk.ApplicationWindow):
 
 def run(disk, part):
     def on_activate(app):
-        win = EFIWindow(app)
+        win = EfibootsMainWindow(app)
         win.query_system(disk, part)
         win.show()
 
     app = Gtk.Application()
     app.connect('activate', on_activate)
-    app.run()
+    app.run(sys.argv)
