@@ -2,6 +2,27 @@ import abc
 import logging
 import re
 import subprocess
+from dataclasses import dataclass
+
+
+@dataclass
+class ParsedEfibootmgrEntry:
+    """Stores a single entry parsed from efibootmgr command"""
+    num: str
+    active: bool
+    name: str
+    path: str
+    parameters: str
+
+
+@dataclass
+class ParsedEfibootmgr:
+    """Stores all information parsed from efibootmgr command"""
+    entries: list[ParsedEfibootmgrEntry]
+    boot_order: list
+    boot_next: str
+    boot_current: str
+    timeout: int
 
 
 class Efibootmgr(abc.ABC):
@@ -38,7 +59,7 @@ class Efibootmgr(abc.ABC):
         pass
 
     @classmethod
-    def parse(cls, boot: list[str]) -> dict:
+    def parse(cls, boot: list[str]) -> ParsedEfibootmgr:
         parser_logger = logging.getLogger("parser")
         parsed_efi = {
             'entries': [],
@@ -58,7 +79,7 @@ class Efibootmgr(abc.ABC):
             except ValueError as e:
                 parser_logger.warning("line didn't match: %s", e.args[1])
 
-        return parsed_efi
+        return ParsedEfibootmgr(**parsed_efi)
 
 
 class EfibootmgrV17(Efibootmgr):
@@ -96,10 +117,10 @@ class EfibootmgrV17(Efibootmgr):
         if match and match.group(1) and match.group(3):
             num, active, name, path, params = match.groups()
             params = EfibootmgrV17.decode_params(params)
-            parsed = dict(num=num, active=active is not None, name=name,
-                          path=path if path else '', parameters=params)
-            parser_logger.debug("Entry: %s", parsed)
-            return 'entry', parsed
+            parsed_entry = ParsedEfibootmgrEntry(num=num, active=active is not None, name=name,
+                                                 path=path if path else '', parameters=params)
+            parser_logger.debug("Entry: %s", parsed_entry)
+            return 'entry', parsed_entry
         if line.startswith("BootOrder"):
             parsed = line.split(':')[1].strip().split(',')
             parser_logger.debug("BootOrder: %s", parsed)
@@ -134,10 +155,10 @@ class EfibootmgrV18(Efibootmgr):
 
         if match and match.group(1) and match.group(3):
             num, active, name, path, params = match.groups()
-            parsed = dict(num=num, active=active is not None, name=name,
-                          path=path if path else '', parameters=params)
-            parser_logger.debug("Entry: %s", parsed)
-            return 'entry', parsed
+            parsed_entry = ParsedEfibootmgrEntry(num=num, active=active is not None, name=name,
+                                                 path=path if path else '', parameters=params)
+            parser_logger.debug("Entry: %s", parsed_entry)
+            return 'entry', parsed_entry
         if line.startswith("BootOrder"):
             parsed = line.split(':')[1].strip().split(',')
             parser_logger.debug("BootOrder: %s", parsed)

@@ -33,7 +33,7 @@ def yes_no_dialog(parent, primary, secondary, on_response):
     return dialog
 
 
-def error_dialog(transient_for: Gtk.Window, message: str, title: str, on_response):
+def error_dialog(transient_for: Gtk.Window, message: str, title: str, on_response: callable):
     dialog = Gtk.MessageDialog(transient_for=transient_for, destroy_with_parent=True,
                                message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CLOSE,
                                text=title, secondary_text=message, modal=True)
@@ -121,7 +121,7 @@ def auto_detect_esp_with_lsblk() -> tuple[str, str] | None:
     return disk, part
 
 
-def auto_detect_esp(window):
+def auto_detect_esp():
     methods = (make_auto_detect_esp_with_findmnt('/efi'), make_auto_detect_esp_with_findmnt('/boot/efi'),
                make_auto_detect_esp_with_findmnt('/boot'), auto_detect_esp_with_lsblk)
     for find_esp_method in methods:
@@ -211,8 +211,8 @@ class EfibootsListStore(Gio.ListStore):
         self.remove_all()
         self.boot_order = []
         self.boot_order_initial = []
-        self.boot_next = None
-        self.boot_next_initial = None
+        self.boot_next: str | None = None
+        self.boot_next_initial: str | None = None
         self.boot_active = set()
         self.boot_inactive = set()
         self.boot_add = {}
@@ -224,7 +224,7 @@ class EfibootsListStore(Gio.ListStore):
         self.edit_loader = set()
         self.edit_name = set()
 
-    def refresh(self, *args):
+    def refresh(self):
         self.clear()
 
         try:
@@ -238,26 +238,26 @@ class EfibootsListStore(Gio.ListStore):
         except UnicodeDecodeError as e:
             logging.exception("Error decoding efibootmgr -v output.")
             error_dialog(transient_for=self.window, title="Error while decoding efibootmgr output.",
-                         message="Could not decode efiboomgr output.\n" + e, on_response=lambda *_: sys.exit(-2))
+                         message=f"Could not decode efiboomgr output.\n{e}", on_response=lambda *_: sys.exit(-2))
             return
 
         if boot is not None:
             parsed_efi = self.efibootmgr.parse(boot)
-            for entry in parsed_efi['entries']:
-                row = EfibootRowModel(entry['num'] == parsed_efi['boot_current'],
-                                      entry['num'],
-                                      entry['name'],
-                                      entry['path'],
-                                      entry['parameters'],
-                                      entry['active'],
-                                      entry['num'] == parsed_efi['boot_next'])
+            for entry in parsed_efi.entries:
+                row = EfibootRowModel(entry.num == parsed_efi.boot_current,
+                                      entry.num,
+                                      entry.name,
+                                      entry.path,
+                                      entry.parameters,
+                                      entry.active,
+                                      entry.num == parsed_efi.boot_next)
                 self.append(row)
 
-            self.boot_order_initial = parsed_efi['boot_order']
+            self.boot_order_initial = parsed_efi.boot_order
             self.boot_order = list(self.boot_order_initial)
-            self.boot_next = self.boot_next_initial = parsed_efi['boot_next']
-            self.boot_current = parsed_efi['boot_current']
-            self.timeout = self.timeout_initial = parsed_efi['timeout']
+            self.boot_next = self.boot_next_initial = parsed_efi.boot_next
+            self.boot_current = parsed_efi.boot_current
+            self.timeout = self.timeout_initial = parsed_efi.timeout
             self.window.timeout_spin.set_value(self.timeout)
 
             self.sort(self.sort_by_boot_order)
@@ -352,6 +352,8 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
 
     def __init__(self, app):
         Gtk.Window.__init__(self, title="EFI boot manager", application=app)
+        self.part: str | None = None
+        self.disk: str | None = None
         self.model = EfibootsListStore(self)
         self.selection_model = Gtk.SingleSelection(model=self.model)
         self.column_view.set_model(self.selection_model)
@@ -361,7 +363,7 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
 
     def query_system(self, disk, part):
         if not (disk and part):
-            disk, part = auto_detect_esp(self)
+            disk, part = auto_detect_esp()
         if not (disk and part):
             error_dialog(self, "Could not find an EFI System Partition. Ensure your ESP is mounted on /efi, "
                                "/boot/efi or /boot, that it has the correct partition type and vfat file system and that "
@@ -371,40 +373,20 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         self.disk, self.part = disk, part
         self.model.refresh()
 
-    def on_query_tooltip(self, treeview, x, y, keyboard_mode, tooltip):
-        if keyboard_mode:
-            path, column = treeview.get_cursor()
-            if not path:
-                return False
-        else:
-            bin_x, bin_y = treeview.convert_widget_to_bin_window_coords(x, y)
-            result = treeview.get_path_at_pos(bin_x, bin_y)
-            if result is None:
-                return False
-            path, column, _, _ = result
-        if column.get_title() == "Parameters":
-            model_iter = treeview.get_model().get_iter(path)
-            text = treeview.get_model().get(model_iter, EfibootsListStore.ROW_PARAMETERS)[0]
-            if text:
-                tooltip.set_text(text)
-                treeview.set_tooltip_cell(tooltip, path, column, None)
-                return True
-        return False
-
     @Gtk.Template.Callback()
-    def on_clicked_up(self, button: Gtk.Button):
+    def on_clicked_up(self, _: Gtk.Button):
         index = self.selection_model.get_selected()
         self.model.swap(index, max(index - 1, 0))
         self.model.sort(self.model.sort_by_boot_order)
 
     @Gtk.Template.Callback()
-    def on_clicked_down(self, button: Gtk.Button):
+    def on_clicked_down(self, _: Gtk.Button):
         index = self.selection_model.get_selected()
         self.model.swap(index, min(index + 1, len(self.model) - 1))
         self.model.sort(self.model.sort_by_boot_order)
 
     @Gtk.Template.Callback()
-    def on_clicked_add(self, button: Gtk.Button):
+    def on_clicked_add(self, _: Gtk.Button):
         dialog = Gtk.MessageDialog(transient_for=self, modal=True,
                                    destroy_with_parent=True, message_type=Gtk.MessageType.QUESTION,
                                    buttons=Gtk.ButtonsType.OK_CANCEL,
@@ -430,18 +412,18 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         dialog_box.append(grid)
         entries["label"].connect('changed', lambda l: yes_button.set_sensitive(l.get_text() != ''))
 
-        def on_response(dialog, response):
-            label, path, parameters = map(lambda field: entries[field].get_text(), fields)
+        def on_response(add_dialog, response):
+            new_label, path, parameters = map(lambda e_field: entries[e_field].get_text(), fields)
             if response == Gtk.ResponseType.OK:
                 self.model.add(label, path, parameters)
                 self.remove.set_sensitive(True)
-            dialog.close()
+            add_dialog.close()
 
         dialog.connect('response', on_response)
         dialog.show()
 
     @Gtk.Template.Callback()
-    def on_clicked_duplicate(self, button: Gtk.Button):
+    def on_clicked_duplicate(self, _: Gtk.Button):
         row: EfibootRowModel | None = self.selection_model.get_selected_item()
         if row:
             self.model.add("Copy of " + row.name, row.path, row.parameters)
@@ -508,7 +490,7 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
             return None
 
     @Gtk.Template.Callback()
-    def on_clicked_reset(self, button: Gtk.Button):
+    def on_clicked_reset(self, _: Gtk.Button):
         def on_response(dialog, response):
             if response == Gtk.ResponseType.YES:
                 self.model.refresh()
@@ -538,8 +520,8 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
 
 
 def run(disk, part):
-    def on_activate(app):
-        win = EfibootsMainWindow(app)
+    def on_activate(my_app):
+        win = EfibootsMainWindow(my_app)
         win.query_system(disk, part)
         win.show()
 
