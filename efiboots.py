@@ -140,13 +140,6 @@ def execute_script_as_root(script):
     subprocess.run(["pkexec", "sh", "-c", script], check=True, capture_output=True)
 
 
-class CustomBuilderScope(GObject.GObject, Gtk.BuilderScope):
-    __gtype_name__ = "CustomBuilderScope"
-
-    def do_create_closure(self, builder, func_name, flags, obj):
-        print(builder, func_name, flags, obj)
-
-
 class EfibootRowModel(GObject.Object):
     __gtype_name__ = "EfibootRowModel"
 
@@ -364,6 +357,8 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         self.column_view.set_model(self.selection_model)
         self.timeout_spin.set_adjustment(Gtk.Adjustment(lower=0, step_increment=1, upper=999))
 
+        self.add_css_class("devel")
+
     def query_system(self, disk, part):
         if not (disk and part):
             disk, part = auto_detect_esp(self)
@@ -455,7 +450,7 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
     def on_clicked_remove(self, button: Gtk.Button):
         row = self.selection_model.get_selected_item()
         index = self.selection_model.get_selected()
-        print(f"Removing {row} at {index}")
+        logging.debug(f"Removing {row} at {index}")
         self.model.remove(index)
         if len(self.model) == 0:
             button.set_sensitive(False)

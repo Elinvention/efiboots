@@ -22,9 +22,6 @@
             <property name="hexpand">True</property>
             <property name="vexpand">True</property>
             <child>
-              <object class="GtkCheckButton" id="next_group">
-                <property name="visible">False</property>
-              </object>
               <object class="GtkColumnViewColumn" id="column_current">
                 <property name="resizable">True</property>
                 <property name="title">Current</property>
@@ -212,9 +209,6 @@
   <template class="GtkListItem">
     <property name="child">
       <object class="GtkCheckButton">
-        <property name="group">next_group</property>
-        <property name="sensitive">False</property>
-        <property name="css-classes">radio</property>
         <binding name="active">
           <lookup name="next" type="EfibootRowModel">
             <lookup name="item">GtkListItem</lookup>
@@ -300,21 +294,21 @@
     </child>
     <child type="titlebar">
       <object class="GtkHeaderBar">
-        <child type="end">
+        <child type="start">
           <object class="GtkButton" id="refresh_button">
             <property name="icon-name">edit-clear-all-symbolic</property>
             <property name="tooltip-text">Reset</property>
             <signal name="clicked" handler="on_clicked_reset"/>
           </object>
         </child>
-        <child type="end">
+        <child type="start">
           <object class="GtkButton" id="save_button">
             <property name="icon-name">document-save-symbolic</property>
             <property name="tooltip-text">Save</property>
             <signal name="clicked" handler="on_clicked_save"/>
           </object>
         </child>
-        <child type="end">
+        <child type="start">
           <object class="GtkButton" id="reboot_button">
             <property name="icon-name">system-reboot-symbolic</property>
             <property name="tooltip-text">Save and reboot</property>
