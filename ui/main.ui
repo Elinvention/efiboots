@@ -251,6 +251,13 @@
               </object>
             </child>
             <child>
+              <object class="GtkButton" id="duplicate">
+                <property name="icon-name">edit-copy-symbolic</property>
+                <property name="tooltip-text">Duplicate entry</property>
+                <signal name="clicked" handler="on_clicked_duplicate"/>
+              </object>>
+            </child>
+            <child>
               <object class="GtkButton" id="add">
                 <property name="icon-name">list-add-symbolic</property>
                 <property name="tooltip-text">Add new entry</property>

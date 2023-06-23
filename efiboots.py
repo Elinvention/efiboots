@@ -446,6 +446,12 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         dialog.show()
 
     @Gtk.Template.Callback()
+    def on_clicked_duplicate(self, button: Gtk.Button):
+        row: EfibootRowModel | None = self.selection_model.get_selected_item()
+        if row:
+            self.model.add("Copy of " + row.name, row.path, row.parameters)
+
+    @Gtk.Template.Callback()
     def on_clicked_remove(self, button: Gtk.Button):
         row = self.selection_model.get_selected_item()
         index = self.selection_model.get_selected()
