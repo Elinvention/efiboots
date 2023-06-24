@@ -171,57 +171,12 @@
               <object class="GtkColumnViewColumn" id="column_active">
                 <property name="resizable">True</property>
                 <property name="title">Active</property>
-                <property name="factory">
-                  <object class="GtkBuilderListItemFactory">
-                    <property name="bytes">
-<![CDATA[
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <template class="GtkListItem">
-    <property name="child">
-      <object class="GtkSwitch">
-        <property name="sensitive">False</property>
-        <binding name="active">
-          <lookup name="active" type="EfibootRowModel">
-            <lookup name="item">GtkListItem</lookup>
-          </lookup>
-        </binding>
-      </object>
-    </property>
-  </template>
-</interface>
-]]>
-                    </property>
-                  </object>
-                </property>
               </object>
             </child>
             <child>
               <object class="GtkColumnViewColumn" id="column_next">
                 <property name="resizable">True</property>
                 <property name="title">Boot Next</property>
-                <property name="factory">
-                  <object class="GtkBuilderListItemFactory">
-                    <property name="bytes">
-<![CDATA[
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <template class="GtkListItem">
-    <property name="child">
-      <object class="GtkCheckButton">
-        <binding name="active">
-          <lookup name="next" type="EfibootRowModel">
-            <lookup name="item">GtkListItem</lookup>
-          </lookup>
-        </binding>
-      </object>
-    </property>
-  </template>
-</interface>
-]]>
-                    </property>
-                  </object>
-                </property>
               </object>
             </child>
           </object>
@@ -283,11 +238,6 @@
                 <signal name="value-changed" handler="on_value_changed_timeout"/>
               </object>
             </child>
-          </object>
-        </child>
-        <child>
-          <object class="GtkLabel">
-            <property name="label">WARNING: The active and boot next columns are a work in progress and are currently not usable. GTK is hard!</property>
           </object>
         </child>
       </object>

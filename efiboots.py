@@ -9,7 +9,7 @@ from typing import Callable
 from efibootmgr import Efibootmgr
 
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gtk, Gio, GObject
+from gi.repository import Gtk, Gio, GObject, GLib
 
 
 def btn_with_icon(icon):
@@ -267,14 +267,20 @@ class EfibootsListStore(Gio.ListStore):
         row2_index = self.boot_order.index(row2.num)
         return row1_index - row2_index
 
-    def change_boot_next(self, widget, checked_row: EfibootRowModel):
-        checked_row.next = not checked_row.next
-        self.boot_next = checked_row.num if checked_row.next else None
+    def change_boot_next(self, action: Gio.SimpleAction, num_variant: GLib.Variant):
+        num = num_variant.get_string()
+        if self.boot_next == num:
+            action.set_state(GLib.Variant.new_string(""))
+            self.boot_next = None
+        else:
+            action.set_state(num_variant)
+            self.boot_next = num
+        logging.debug("%s changed to %s", action.get_name(), action.get_state())
 
-    def change_active(self, widget: Gtk.CheckButton, checked_row: EfibootRowModel):
-        checked_row.active = widget.get_active()
-        num = checked_row.num
-        if checked_row.active:
+    def change_active(self, widget: Gtk.Switch, state: bool, row: EfibootRowModel):
+        row.active = state
+        num = row.num
+        if row.active:
             if num in self.boot_inactive:
                 self.boot_inactive.remove(num)
             else:
@@ -285,7 +291,7 @@ class EfibootsListStore(Gio.ListStore):
             else:
                 self.boot_inactive.add(num)
 
-        logging.debug(checked_row, self.boot_active, self.boot_inactive)
+        logging.debug("%s %s %s", row, self.boot_active, self.boot_inactive)
 
     def add(self, label, path, parameters):
         new_num = "NEW{:d}".format(len(self.boot_add))
@@ -342,6 +348,8 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
     __gtype_name__ = "EfibootsMainWindow"
 
     column_view: Gtk.ColumnView = Gtk.Template.Child()
+    column_next: Gtk.ColumnViewColumn = Gtk.Template.Child()
+    column_active: Gtk.ColumnViewColumn = Gtk.Template.Child()
 
     up: Gtk.Button = Gtk.Template.Child()
     down: Gtk.Button = Gtk.Template.Child()
@@ -359,7 +367,70 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         self.column_view.set_model(self.selection_model)
         self.timeout_spin.set_adjustment(Gtk.Adjustment(lower=0, step_increment=1, upper=999))
 
+        def on_setup_active(_: Gtk.ListItemFactory, item: Gtk.ListItem):
+            switch = Gtk.Switch()
+            item.set_child(switch)
+
+        def on_bind_active(_: Gtk.ListItemFactory, item: Gtk.ListItem):
+            row: EfibootRowModel = item.get_item()
+            switch: Gtk.Switch = item.get_child()
+            switch.set_active(row.active)
+            switch._binding = switch.connect("state-set", self.model.change_active, row)
+
+        def on_unbind_active(_: Gtk.ListItemFactory, item: Gtk.ListItem):
+            switch: Gtk.Switch = item.get_child()
+            if switch._binding:
+                switch.disconnect(switch._binding)
+                switch._binding = None
+
+        def on_teardown_active(_: Gtk.ListItemFactory, item: Gtk.ListItem):
+            switch: Gtk.Switch = item.get_child()
+            switch._binding = None
+
+        factory_active = Gtk.SignalListItemFactory.new()
+        factory_active.connect("setup", on_setup_active)
+        factory_active.connect("bind", on_bind_active)
+        factory_active.connect("unbind", on_unbind_active)
+        factory_active.connect("teardown", on_teardown_active)
+        self.column_active.set_factory(factory_active)
+
+        var = GLib.Variant.new_string("")
+        action_next = Gio.SimpleAction.new_stateful("next_boot", var.get_type(), var)
+        action_next.connect("change-state", self.model.change_boot_next)
+        self.add_action(action_next)
+
+        def on_setup_next_boot(_: Gtk.ListItemFactory, item: Gtk.ListItem):
+            num_variant = GLib.Variant.new_string("0000")  # set to something not None
+            checkbutton = Gtk.CheckButton(action_name="win.next_boot", action_target=num_variant)
+            item.set_child(checkbutton)
+
+        def on_bind_next_boot(_: Gtk.ListItemFactory, item: Gtk.ListItem):
+            row: EfibootRowModel = item.get_item()
+            checkbutton: Gtk.CheckButton = item.get_child()
+            checkbutton._binding = checkbutton.bind_property("active", row, "next", GObject.BindingFlags.BIDIRECTIONAL)
+            checkbutton.set_action_target_value(GLib.Variant.new_string(row.num))
+
+        def on_unbind_next_boot(_: Gtk.ListItemFactory, item: Gtk.ListItem):
+            checkbutton: Gtk.CheckButton = item.get_child()
+            if checkbutton._binding:
+                checkbutton._binding.unbind()
+                checkbutton._binding = None
+
+        def on_teardown_next_boot(_: Gtk.ListItemFactory, item: Gtk.ListItem):
+            checkbutton: Gtk.CheckButton = item.get_child()
+            checkbutton._binding = None
+
+        factory = Gtk.SignalListItemFactory.new()
+        factory.connect("setup", on_setup_next_boot)
+        factory.connect("bind", on_bind_next_boot)
+        factory.connect("unbind", on_unbind_next_boot)
+        factory.connect("teardown", on_teardown_next_boot)
+        self.column_next.set_factory(factory)
+
         self.add_css_class("devel")
+
+    def next_boot_handler(self, action: Gio.SimpleAction, state: str):
+        self.model.boot_next = state
 
     def query_system(self, disk, part):
         if not (disk and part):

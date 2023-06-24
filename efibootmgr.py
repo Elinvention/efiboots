@@ -157,7 +157,7 @@ class EfibootmgrV18(Efibootmgr):
             num, active, name, path, params = match.groups()
             parsed_entry = ParsedEfibootmgrEntry(num=num, active=active is not None, name=name,
                                                  path=path if path else '', parameters=params)
-            parser_logger.debug("Entry: %s", parsed_entry)
+            parser_logger.debug("%s", parsed_entry)
             return 'entry', parsed_entry
         if line.startswith("BootOrder"):
             parsed = line.split(':')[1].strip().split(',')
