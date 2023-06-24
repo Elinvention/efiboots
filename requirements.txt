@@ -1,0 +1,2 @@
+setuptools~=65.5.0
+PyGObject~=3.44.1
