@@ -31,3 +31,5 @@ efiboots = "efiboots"
 Homepage = "https://github.com/Elinvention/efiboots"
 Issues = "https://github.com/Elinvention/efiboots/issues"
 
+[tool.setuptools.data-files]
+"share/applications" = ["efiboots.desktop"]
