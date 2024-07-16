@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=70.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "efiboots"
+version = "1.0"
+authors = [
+  { name="Elia Argentieri", email="elia@elinvention.ovh" }
+]
+maintainers = [
+  { name="Elia Argentieri", email="elia@elinvention.ovh" }
+]
+description = "Manage EFI boot loader entries with this simple GUI"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: POSIX :: Linux",
+]
+dependencies = [
+    "PyGObject~=3.44.1"
+]
+keywords = ["gtk4", "efi", "efibootmgr"]
+
+[project.gui-scripts]
+efiboots = "efiboots"
+
+[project.urls]
+Homepage = "https://github.com/Elinvention/efiboots"
+Issues = "https://github.com/Elinvention/efiboots/issues"
+
