@@ -486,7 +486,7 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         def on_response(add_dialog, response):
             new_label, path, parameters = map(lambda e_field: entries[e_field].get_text(), fields)
             if response == Gtk.ResponseType.OK:
-                self.model.add(label, path, parameters)
+                self.model.add(new_label, path, parameters)
                 self.remove.set_sensitive(True)
             add_dialog.close()
 
