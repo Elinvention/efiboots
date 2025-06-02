@@ -6,6 +6,7 @@ import gi
 import os
 
 from typing import Callable
+from gettext import gettext as _
 
 from efiboots.efibootmgr import Efibootmgr
 
@@ -48,13 +49,13 @@ def error_dialog(transient_for: Gtk.Window, message: str, title: str, on_respons
     return dialog
 
 
-many_esps_error_message = """
+many_esps_error_message = _("""
 This program detected more than one EFI System Partition on your system. You have to choose the right one.
 You can either mount your ESP on /boot/efi or pass the ESP block device via --disk and --part
 (e.g. --disk=/dev/sda --part=1).
 
 Choose wisely.
-"""
+""")
 
 device_regex = re.compile(r'^([a-z/]+[0-9a-z]*?)p?([0-9]+)$')
 
@@ -135,8 +136,8 @@ def auto_detect_esp_with_lsblk() -> tuple[str, str] | None:
         def on_response(*args):
             logging.debug("sys.exit(-1)")
             sys.exit(-1)
-        error_dialog(None, f"{many_esps_error_message}\nDetected ESPs: {', '.join(esps)}",
-                     "More than one EFI System Partition detected!", on_response)
+        error_dialog(None, many_esps_error_message + "\n" + _("Detected ESPs: ") + ', '.join(esps),
+                     _("More than one EFI System Partition detected!"), on_response)
         return None
     return disk, part
 
@@ -251,14 +252,14 @@ class EfibootsListStore(Gio.ListStore):
             boot = self.efibootmgr.run()
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             logging.exception("Error running efibootmgr. Please check that it is correctly installed.")
-            error_dialog(transient_for=self.window, title="efibootmgr utility not installed!",
-                         message=f"Please check that the efibootmgr utility is correctly installed, as this program requires its output.\n{str(e)}",
+            error_dialog(transient_for=self.window, title=_("efibootmgr utility not installed!"),
+                         message=_("Please check that the efibootmgr utility is correctly installed, as this program requires its output.") + f"\n{str(e)}",
                          on_response=lambda *_: sys.exit(-1))
             return
         except UnicodeDecodeError as e:
             logging.exception("Error decoding efibootmgr -v output.")
-            error_dialog(transient_for=self.window, title="Error while decoding efibootmgr output.",
-                         message=f"Could not decode efiboomgr output.\n{e}", on_response=lambda *_: sys.exit(-2))
+            error_dialog(transient_for=self.window, title=_("Error while decoding efibootmgr output."),
+                         message=_("Could not decode efiboomgr output.") + f"\n{e}", on_response=lambda *_: sys.exit(-2))
             return
 
         if boot is not None:
@@ -469,10 +470,10 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         if not (disk and part):
             disk, part = auto_detect_esp()
         if not (disk and part):
-            error_dialog(self, "Could not find an EFI System Partition. Ensure your ESP is mounted on /efi, "
+            error_dialog(self, _("Could not find an EFI System Partition. Ensure your ESP is mounted on /efi, "
                                "/boot/efi or /boot, that it has the correct partition type and vfat file system and that "
-                               "either findmnt or lsblk commands are installed (should be by default on most distros).",
-                         "Can't auto-detect ESP!", lambda *_: sys.exit(-1))
+                               "either findmnt or lsblk commands are installed (should be by default on most distros)."),
+                         _("Can't auto-detect ESP!"), lambda *_: sys.exit(-1))
             return
         self.disk, self.part = disk, part
         self.model.refresh()
@@ -490,15 +491,15 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         self.model.sort(self.model.sort_by_boot_order)
 
     @Gtk.Template.Callback()
-    def on_clicked_add(self, _: Gtk.Button):
+    def on_clicked_add(self, __: Gtk.Button):
         dialog = Gtk.MessageDialog(transient_for=self, modal=True,
                                    destroy_with_parent=True, message_type=Gtk.MessageType.QUESTION,
                                    buttons=Gtk.ButtonsType.OK_CANCEL,
-                                   text="Label is mandatory. It is the name that will show up in your EFI boot menu.\n\n"
+                                   text=_("Label is mandatory. It is the name that will show up in your EFI boot menu.\n\n"
                                         "Path is the path to the loader relative to the ESP, like \\EFI\\Boot\\bootx64.efi\n\n"
-                                        "Parameters is an optional list of aguments to pass to the loader (your kernel parameters if you use EFISTUB)")
+                                        "Parameters is an optional list of aguments to pass to the loader (your kernel parameters if you use EFISTUB)"))
 
-        dialog.set_title("New EFI loader")
+        dialog.set_title(_("New EFI loader"))
         yes_button = dialog.get_widget_for_response(Gtk.ResponseType.OK)
         yes_button.set_sensitive(False)
         dialog_box = dialog.get_content_area()
@@ -527,10 +528,10 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         dialog.show()
 
     @Gtk.Template.Callback()
-    def on_clicked_duplicate(self, _: Gtk.Button):
+    def on_clicked_duplicate(self, __: Gtk.Button):
         row: EfibootRowModel | None = self.selection_model.get_selected_item()
         if row:
-            self.model.add("Copy of " + row.name, row.path, row.parameters)
+            self.model.add(_("Copy of ") + row.name, row.path, row.parameters)
 
     @Gtk.Template.Callback()
     def on_clicked_remove(self, button: Gtk.Button):
@@ -552,16 +553,16 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
                         execute_script_as_root(script)
                         self.model.refresh()
                     except FileNotFoundError as e:
-                        error_dialog(self, "The pkexec command from PolKit is "
-                                           "required to execute commands with elevated privileges.\n"
-                                           f"{e}", "pkexec not found", lambda d, r: d.close())
+                        error_dialog(self, _("The pkexec command from PolKit is "
+                                           "required to execute commands with elevated privileges.\n") +
+                                           f"{e}", _("pkexec not found"), lambda d, r: d.close())
                     except subprocess.CalledProcessError as e:
                         error_dialog(self, f"{e}\n{e.stderr.decode()}", "Error", lambda d, r: d.close())
                 dialog.close()
 
-            yes_no_dialog(self, "Are you sure you want to continue?",
-                          "Your changes are about to be written to EFI NVRAM.\n"
-                          "The following commands will be run:\n\n" + script,
+            yes_no_dialog(self, _("Are you sure you want to continue?"),
+                          _("Your changes are about to be written to EFI NVRAM.") + "\n" +
+                          _("The following commands will be run:") + "\n\n" + script,
                           on_response)
 
     @Gtk.Template.Callback()
@@ -574,21 +575,21 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
                     try:
                         execute_script_as_root("reboot\n")
                     except FileNotFoundError as e:
-                        error_dialog(self, "The pkexec command from PolKit is "
-                                           "required to execute commands with elevated privileges.\n"
-                                           f"{e}", "pkexec not found", lambda d, r: d.close())
+                        error_dialog(self, _("The pkexec command from PolKit is "
+                                           "required to execute commands with elevated privileges.")
+                                           + f"\n{e}", _("pkexec not found"), lambda d, r: d.close())
                     except subprocess.CalledProcessError as e:
                         error_dialog(self, f"{e}\n{e.stderr.decode()}", "Error", lambda d, r: d.close())
                 response_dialog.close()
 
-            yes_no_dialog(self, "Are you sure you want to reboot?",
-                          "Press OK to reboot your computer.\n",
+            yes_no_dialog(self, _("Are you sure you want to reboot?"),
+                          _("Press OK to reboot your computer."),
                           on_response)
 
     def discard_warning(self, on_response, win: Gtk.Window):
         if self.model.pending_changes():
-            return yes_no_dialog(win, "Are you sure you want to discard?",
-                                 "Your changes will be lost if you don't save them.",
+            return yes_no_dialog(win, _("Are you sure you want to discard?"),
+                                 _("Your changes will be lost if you don't save them."),
                                  on_response)
         else:
             return None
