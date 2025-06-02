@@ -1,8 +1,10 @@
-with import <nixpkgs> { };
+{ pkgs ? import <nixpkgs> { } }:
+with pkgs;
 
 let
   pythonPackages = python3Packages;
-in pkgs.mkShell rec {
+in
+mkShell {
   name = "impurePythonEnv";
   venvDir = "./venv";
   buildInputs = [
@@ -38,6 +40,14 @@ in pkgs.mkShell rec {
     glib
 
     gnome-builder
+
+    # required to compile with gnome builder
+    gettext
+    desktop-file-utils
+    appstream
+    pkg-config
+    ninja
+    flatpak-builder
   ];
 
   shellHook = ''

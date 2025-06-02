@@ -2,6 +2,7 @@ import abc
 import logging
 import re
 import subprocess
+import os
 from dataclasses import dataclass
 
 
@@ -25,6 +26,19 @@ class ParsedEfibootmgr:
     timeout: int
 
 
+def is_in_flatpak():
+    return "FLATPAK_ID" in os.environ
+
+
+def subprocess_run_wrapper(cmd):
+    if is_in_flatpak():
+        cmd = [ "flatpak-spawn", "--host" ] + cmd
+        logging.debug("Flatpak sandbox detected. Running: %s", ' '.join(cmd))
+    else:
+        logging.debug("Running: %s", ' '.join(cmd))
+    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+
+
 class Efibootmgr(abc.ABC):
     version_regex = re.compile(r'version ([0-9]+)')
     parse_line_regex = re.compile(r'^Boot([0-9A-F]+)(\*)? (.+)\t(?:.+/File\((.+)\)|.*\))(.*)$')
@@ -32,7 +46,7 @@ class Efibootmgr(abc.ABC):
 
     @staticmethod
     def get_version() -> str:
-        output = subprocess.run(["efibootmgr", "--version"], check=True, capture_output=True, text=True).stdout
+        output = subprocess_run_wrapper(["efibootmgr", "--version"])
         matched = Efibootmgr.version_regex.match(output)
         version = matched.group(1)
         Efibootmgr.log.info("efibootmgr version %s detected", version)
@@ -84,8 +98,7 @@ class Efibootmgr(abc.ABC):
 
 class EfibootmgrV17(Efibootmgr):
     def run(self) -> list[str]:
-        output = subprocess.run(["efibootmgr", "-v"], check=True, capture_output=True,
-                                text=True).stdout.strip().split('\n')
+        output = subprocess_run_wrapper(["efibootmgr", "-v"]).strip().split('\n')
         logging.debug(repr(output))
         return output
 
@@ -143,8 +156,7 @@ class EfibootmgrV17(Efibootmgr):
 
 class EfibootmgrV18(Efibootmgr):
     def run(self):
-        output = subprocess.run(["efibootmgr", "--unicode"], check=True, capture_output=True,
-                                text=True).stdout.strip().split('\n')
+        output = subprocess_run_wrapper(["efibootmgr", "--unicode"]).strip().split('\n')
         logging.debug(repr(output))
         return output
 

@@ -94,6 +94,7 @@ ENV/
 # nix
 result/
 .envrc
+.direnv
 
 # Gtk/GNOME
 *.gresource

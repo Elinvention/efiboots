@@ -1,10 +1,12 @@
 [Desktop Entry]
-Name=EFI Boots
+Name=efiboots
 Comment=Manage EFI boot loader entries with this simple GUI
 Version=1.0
 Exec=efiboots
-Type=Application
+Icon=ovh.elinvention.Efiboots
 Terminal=false
-Icon=system-shutdown
+Type=Application
 Categories=Settings;HardwareSettings;GNOME;GTK
-
+Keywords=EFI;UEFI;boot;
+StartupNotify=true
+DBusActivatable=true

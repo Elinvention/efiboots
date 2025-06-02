@@ -3,10 +3,11 @@ import subprocess
 import re
 import logging
 import gi
+import os
 
 from typing import Callable
 
-from efibootmgr import Efibootmgr
+from efiboots.efibootmgr import Efibootmgr
 
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gio, GObject, GLib
@@ -58,6 +59,19 @@ Choose wisely.
 device_regex = re.compile(r'^([a-z/]+[0-9a-z]*?)p?([0-9]+)$')
 
 
+def is_in_flatpak():
+    return "FLATPAK_ID" in os.environ
+
+
+def subprocess_run_wrapper(cmd):
+    if is_in_flatpak():
+        cmd = [ "flatpak-spawn", "--host" ] + cmd
+        logging.debug("Flatpak sandbox detected. Running: %s", ' '.join(cmd))
+    else:
+        logging.debug("Running: %s", ' '.join(cmd))
+    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+
+
 def device_to_disk_part(device: str) -> tuple[str, str]:
     try:
         disk, part = device_regex.match(device).groups()
@@ -72,9 +86,9 @@ def make_auto_detect_esp_with_findmnt(esp_mount_point) -> Callable:
         # findmnt --noheadings --output SOURCE --mountpoint /boot/efi
         cmd = ["findmnt", "--noheadings", "--output", "SOURCE,FSTYPE", "--mountpoint", esp_mount_point]
 
-        logging.debug("Running: %s", ' '.join(cmd))
+
         try:
-            findmnt_output = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+            findmnt_output = subprocess_run_wrapper(cmd)
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
             logging.warning("Could not detect ESP with findmnt: %s", e)
             return
@@ -100,7 +114,7 @@ def auto_detect_esp_with_lsblk() -> tuple[str, str] | None:
 
     logging.debug("Running: %s", ' '.join(cmd))
     try:
-        res = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()
+        res = subprocess_run_wrapper(cmd).strip()
     except (FileNotFoundError, subprocess.CalledProcessError) as e:
         logging.warning("Could not detect ESP with lsblk: %s", e)
         return
@@ -110,13 +124,19 @@ def auto_detect_esp_with_lsblk() -> tuple[str, str] | None:
         name, part_type, fs_type = match.groups()
         if part_type.upper() in esp_part_types and fs_type == 'vfat':
             esps.append(name)
+    logging.info(esps)
+    if len(esps) == 0:
+        return None
     if len(esps) == 1:
         source = esps[0]
         disk, part = device_to_disk_part(source)
     else:
         logging.warning(many_esps_error_message)
+        def on_response(*args):
+            logging.debug("sys.exit(-1)")
+            sys.exit(-1)
         error_dialog(None, f"{many_esps_error_message}\nDetected ESPs: {', '.join(esps)}",
-                     "More than one EFI System Partition detected!", lambda *_: sys.exit(-1))
+                     "More than one EFI System Partition detected!", on_response)
         return None
     return disk, part
 

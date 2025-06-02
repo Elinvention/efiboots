@@ -1,16 +1,38 @@
-{ lib, gtk4, glib, gobject-introspection, efibootmgr, python3, util-linux
-, wrapGAppsHook, desktop-file-utils, hicolor-icon-theme }:
+{
+  lib,
+  gtk4,
+  glib,
+  gobject-introspection,
+  efibootmgr,
+  python3,
+  util-linux,
+  wrapGAppsHook,
+  desktop-file-utils,
+  hicolor-icon-theme,
+  meson,
+  ninja,
+  pkg-config,
+  gettext,
+  appstream,
+  stdenv,
+  ...
+}:
 
 let
   python_deps = with python3.pkgs; [
     pygobject3
   ];
 in
-python3.pkgs.buildPythonApplication rec {
+stdenv.mkDerivation rec {
   name = "efiboots";
   src = ./.;
 
   nativeBuildInputs = [
+    meson
+    ninja
+    pkg-config
+    gettext
+    appstream
     wrapGAppsHook
     desktop-file-utils # needed for update-desktop-database
     glib # needed for glib-compile-schemas

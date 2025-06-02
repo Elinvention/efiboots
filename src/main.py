@@ -1,4 +1,22 @@
-#!/usr/bin/env python3
+# main.py
+#
+# Copyright 2025 Elia Argentieri
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 
 import logging
 import gi
@@ -68,8 +86,8 @@ class EfibootsApplication(Gtk.Application):
         if not self.window:
             # Windows are associated with the application
             # when the last one is closed the application shuts down
-            import efiboots
-            self.window = efiboots.EfibootsMainWindow(application=self)
+            from efiboots.window import EfibootsMainWindow
+            self.window = EfibootsMainWindow(application=self)
 
         self.window.query_system(self.disk, self.part)
         self.window.present()
@@ -93,8 +111,11 @@ class EfibootsApplication(Gtk.Application):
         self.quit()
 
 
-if __name__ == "__main__":
+def main(version):
     logging.basicConfig(level=logging.DEBUG)
     app = EfibootsApplication()
     app.run(sys.argv)
+
+if __name__ == "__main__":
+    main("")
 

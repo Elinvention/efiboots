@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="efiboots">
+	<schema id="ovh.elinvention.Efiboots" path="/ovh/elinvention/Efiboots/">
+	</schema>
+</schemalist>

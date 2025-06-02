@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=ovh.elinvention.Efiboots
+Exec=@bindir@/efiboots --gapplication-service

@@ -1,0 +1,17 @@
+# List of source files containing translatable strings.
+# Please keep this file sorted alphabetically.
+data/ovh.elinvention.Efiboots.desktop.in
+data/ovh.elinvention.Efiboots.metainfo.xml.in
+data/ovh.elinvention.Efiboots.gschema.xml
+src/efibootmgr.py
+src/efiboots.in
+src/main.py
+src/window.py
+src/gtk/about.ui
+src/gtk/column_current_factory.ui
+src/gtk/column_label_factory.ui
+src/gtk/column_number_factory.ui
+src/gtk/column_parameters_factory.ui
+src/gtk/column_path_factory.ui
+src/gtk/main.ui
+src/gtk/menus.ui
