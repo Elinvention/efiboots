@@ -52,17 +52,23 @@ nix-build
 nix-env -i $(realpath result)
 ```
 
+### nix flakes
+
+```
+nix run github:elinvention/efiboots
+```
+
 ## Usage
 
 ```
-$ python3 efiboots
+$ efiboots
 ```
 
 If the program is unable to correctly auto-detect the ESP (EFI System Partition)
 you can manually pass --disk and --part like this (assuming ESP is on /dev/sda1):
 
 ```
-$ python3 efiboots --disk /dev/sda --part 1
+$ efiboots --disk /dev/sda --part 1
 ```
 
 You can also [report the issue](https://github.com/Elinvention/efibootmgr-gui/issues/new),
