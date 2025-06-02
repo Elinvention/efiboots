@@ -1,18 +1,100 @@
 #!/usr/bin/env python3
 
-import argparse
 import logging
+import gi
+import sys
 
-import efiboots
+gi.require_version('Gtk', '4.0')
+from gi.repository import Gtk, Gio, GLib
 
 
-logging.basicConfig(level=logging.DEBUG)
+class EfibootsApplication(Gtk.Application):
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            application_id="ovh.elinvention.Efiboots",
+            flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
+            **kwargs
+        )
+        self.window = None
 
-parser = argparse.ArgumentParser(description="Manage EFI boot variables with this simple GTK GUI.")
-parser.add_argument('--version', action='version', version='1.0')
-parser.add_argument('--disk')
-parser.add_argument('--part')
+        self.add_main_option(
+            "disk",
+            ord("d"),
+            GLib.OptionFlags.NONE,
+            GLib.OptionArg.STRING,
+            "Disk device where ESP is located (for example /dev/sda)",
+            None,
+        )
+        self.add_main_option(
+            "part",
+            ord("p"),
+            GLib.OptionFlags.NONE,
+            GLib.OptionArg.STRING,
+            "Partition number of ESP (for example if ESP is on /dev/sda1 you should set this to 1)",
+            None,
+        )
 
-parsed_args = parser.parse_args()
+        self.disk = ""
+        self.part = ""
 
-efiboots.run(parsed_args.disk, parsed_args.part)
+    def resource_path(self, relpath):
+        base_path = self.get_resource_base_path()
+        return base_path + '/' + relpath
+
+    def do_startup(self):
+        print("do startup")
+        Gtk.Application.do_startup(self)
+
+        action = Gio.SimpleAction.new("quit", None)
+        action.connect("activate", self.on_quit)
+        self.add_action(action)
+
+        resource = Gio.Resource.load("Efiboots.gresources.gresource")
+        Gio.resources_register(resource)
+        print("resource:", resource)
+        print(resource.get_info(self.resource_path("gtk/menus.ui"), Gio.ResourceLookupFlags.NONE))
+        menus_builder = Gtk.Builder.new_from_resource(self.resource_path("gtk/menus.ui"))
+        print(menus_builder.get_object("app-menu"))
+        print(menus_builder.get_object("menubar"))
+        print("resource base path:", self.get_resource_base_path())
+        print(self.get_menu_by_id("app-menu"))
+        print(self.get_menu_by_id("menubar"))
+
+        self.set_menubar(menus_builder.get_object("app-menu"))
+
+    def do_activate(self):
+        # We only allow a single window and raise any existing ones
+        if not self.window:
+            # Windows are associated with the application
+            # when the last one is closed the application shuts down
+            import efiboots
+            self.window = efiboots.EfibootsMainWindow(application=self)
+
+        self.window.query_system(self.disk, self.part)
+        self.window.present()
+
+    def do_command_line(self, command_line):
+        options = command_line.get_options_dict()
+        # convert GVariantDict -> GVariant -> dict
+        options = options.end().unpack()
+
+        if "disk" in options:
+            self.disk = options["disk"]
+            logging.debug("Found disk from command line: %s", self.disk)
+        if "part" in options:
+            self.part = options["part"]
+            logging.debug("Found part from command line: %s", self.part)
+
+        self.activate()
+        return 0
+
+    def on_quit(self, action, param):
+        self.quit()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    app = EfibootsApplication()
+    app.run(sys.argv)
+

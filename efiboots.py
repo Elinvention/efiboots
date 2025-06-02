@@ -343,7 +343,7 @@ class EfibootsListStore(Gio.ListStore):
         return script
 
 
-@Gtk.Template(filename=f'ui/main.ui')
+@Gtk.Template(resource_path='/ovh/elinvention/Efiboots/gtk/main.ui')
 class EfibootsMainWindow(Gtk.ApplicationWindow):
     __gtype_name__ = "EfibootsMainWindow"
 
@@ -358,8 +358,8 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
 
     timeout_spin: Gtk.SpinButton = Gtk.Template.Child()
 
-    def __init__(self, app):
-        Gtk.Window.__init__(self, title="EFI boot manager", application=app)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.part: str | None = None
         self.disk: str | None = None
         self.model = EfibootsListStore(self)
@@ -385,7 +385,8 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
 
         def on_teardown_active(_: Gtk.ListItemFactory, item: Gtk.ListItem):
             switch: Gtk.Switch = item.get_child()
-            switch._binding = None
+            if switch and switch._binding:
+                switch._binding = None
 
         factory_active = Gtk.SignalListItemFactory.new()
         factory_active.connect("setup", on_setup_active)
@@ -398,6 +399,10 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         action_next = Gio.SimpleAction.new_stateful("next_boot", var.get_type(), var)
         action_next.connect("change-state", self.model.change_boot_next)
         self.add_action(action_next)
+
+        about_action = Gio.SimpleAction.new("about", None)
+        about_action.connect("activate", self.on_activate_about)
+        self.add_action(about_action)
 
         def on_setup_next_boot(_: Gtk.ListItemFactory, item: Gtk.ListItem):
             num_variant = GLib.Variant.new_string("0000")  # set to something not None
@@ -418,7 +423,8 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
 
         def on_teardown_next_boot(_: Gtk.ListItemFactory, item: Gtk.ListItem):
             checkbutton: Gtk.CheckButton = item.get_child()
-            checkbutton._binding = None
+            if checkbutton and checkbutton._binding:
+                checkbutton._binding = None
 
         factory = Gtk.SignalListItemFactory.new()
         factory.connect("setup", on_setup_next_boot)
@@ -428,6 +434,13 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         self.column_next.set_factory(factory)
 
         self.add_css_class("devel")
+
+    def on_activate_about(self, action, param):
+        logging.debug("on_activate_about")
+        about_builder = Gtk.Builder.new_from_resource("/ovh/elinvention/Efiboots/gtk/about.ui")
+        about_dialog: Gtk.AboutDialog = about_builder.get_object("about_dialog")
+        about_dialog.set_transient_for(self)
+        about_dialog.present()
 
     def next_boot_handler(self, action: Gio.SimpleAction, state: str):
         self.model.boot_next = state
@@ -571,6 +584,11 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
             self.model.refresh()
 
     @Gtk.Template.Callback()
+    def on_clicked_about(self, _: Gtk.Button):
+        logging.debug("about clicked")
+        self.activate_action("win.about")
+
+    @Gtk.Template.Callback()
     def on_value_changed_timeout(self, spin: Gtk.SpinButton):
         self.model.timeout = spin.get_value_as_int()
 
@@ -589,13 +607,21 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         if self.discard_warning(on_response, win):
             return True
 
+    @Gtk.Template.Callback()
+    def on_query_tooltip(self, column_view: Gtk.ColumnView, x: int, y: int, keyboard_mode: bool, tooltip: Gtk.Tooltip):
+        if keyboard_mode:
+            print("keyboard")
+            cursor = column_view.get_cursor()
+            if not cursor:
+                return False
+        else:
+            # print("mouse", x, y)
+            # new_x, new_y = self.translate_coordinates(column_view, x, y)
+            # print("new", new_x, new_y)
+            pass
 
-def run(disk, part):
-    def on_activate(my_app):
-        win = EfibootsMainWindow(my_app)
-        win.query_system(disk, part)
-        win.show()
+        tooltip.set_text("test")
+        # column_view.set_tooltip_text("test")
+        return True
 
-    app = Gtk.Application()
-    app.connect('activate', on_activate)
-    app.run(sys.argv)
+

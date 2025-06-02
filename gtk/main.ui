@@ -1,11 +1,9 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<!-- Created with Cambalache 0.10.3 -->
+<!-- Created with Cambalache 0.96.1 -->
 <interface>
   <!-- interface-name main.ui -->
-  <requires lib="gtk" version="4.6"/>
+  <requires lib="gtk" version="4.18"/>
   <template class="EfibootsMainWindow" parent="GtkApplicationWindow">
-    <property name="default-height">260</property>
-    <property name="default-width">300</property>
     <signal name="close-request" handler="on_close_request"/>
     <child>
       <object class="GtkBox">
@@ -17,154 +15,68 @@
         <property name="spacing">12</property>
         <child>
           <object class="GtkColumnView" id="column_view">
+            <property name="has-tooltip">True</property>
+            <property name="hexpand">True</property>
             <property name="margin-bottom">10</property>
             <property name="show-column-separators">True</property>
-            <property name="hexpand">True</property>
             <property name="vexpand">True</property>
+            <signal name="query-tooltip" handler="on_query_tooltip"/>
             <child>
               <object class="GtkColumnViewColumn" id="column_current">
-                <property name="resizable">True</property>
-                <property name="title">Current</property>
-                <property name="resizable">False</property>
                 <property name="factory">
                   <object class="GtkBuilderListItemFactory">
-                    <property name="bytes">
-<![CDATA[
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <template class="GtkListItem">
-    <property name="child">
-      <object class="GtkCheckButton">
-        <property name="sensitive">false</property>
-        <binding name="active">
-          <lookup name="current" type="EfibootRowModel">
-            <lookup name="item">GtkListItem</lookup>
-          </lookup>
-        </binding>
-      </object>
-    </property>
-  </template>
-</interface>
-]]>
-                    </property>
+                    <property name="resource">/ovh/elinvention/Efiboots/gtk/column_current_factory.ui</property>
                   </object>
                 </property>
+                <property name="resizable">True</property>
+                <property name="title">Current</property>
               </object>
             </child>
             <child>
               <object class="GtkColumnViewColumn" id="column_number">
-                <property name="resizable">True</property>
-                <property name="title">Number</property>
                 <property name="factory">
                   <object class="GtkBuilderListItemFactory">
-                    <property name="bytes">
-<![CDATA[
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <template class="GtkListItem">
-    <property name="child">
-      <object class="GtkInscription">
-        <binding name="text">
-          <lookup name="num" type="EfibootRowModel">
-            <lookup name="item">GtkListItem</lookup>
-          </lookup>
-        </binding>
-      </object>
-    </property>
-  </template>
-</interface>
-]]>
-                    </property>
+                    <property name="resource">/ovh/elinvention/Efiboots/gtk/column_number_factory.ui</property>
                   </object>
                 </property>
+                <property name="resizable">True</property>
+                <property name="title">Number</property>
               </object>
             </child>
             <child>
               <object class="GtkColumnViewColumn" id="column_label">
-                <property name="resizable">True</property>
-                <property name="title">Label</property>
-                <property name="fixed_width">300</property>
                 <property name="factory">
                   <object class="GtkBuilderListItemFactory">
-                    <property name="bytes">
-<![CDATA[
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <template class="GtkListItem">
-    <property name="child">
-      <object class="GtkInscription">
-        <binding name="text">
-          <lookup name="name" type="EfibootRowModel">
-            <lookup name="item">GtkListItem</lookup>
-          </lookup>
-        </binding>
-      </object>
-    </property>
-  </template>
-</interface>
-]]>
-                    </property>
+                    <property name="resource">/ovh/elinvention/Efiboots/gtk/column_label_factory.ui</property>
                   </object>
                 </property>
+                <property name="fixed-width">300</property>
+                <property name="resizable">True</property>
+                <property name="title">Label</property>
               </object>
             </child>
             <child>
               <object class="GtkColumnViewColumn" id="column_path">
-                <property name="resizable">True</property>
-                <property name="title">Path</property>
-                <property name="fixed_width">300</property>
                 <property name="factory">
                   <object class="GtkBuilderListItemFactory">
-                    <property name="bytes">
-<![CDATA[
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <template class="GtkListItem">
-    <property name="child">
-      <object class="GtkInscription">
-        <binding name="text">
-          <lookup name="path" type="EfibootRowModel">
-            <lookup name="item">GtkListItem</lookup>
-          </lookup>
-        </binding>
-      </object>
-    </property>
-  </template>
-</interface>
-]]>
-                    </property>
+                    <property name="resource">/ovh/elinvention/Efiboots/gtk/column_path_factory.ui</property>
                   </object>
                 </property>
+                <property name="fixed-width">300</property>
+                <property name="resizable">True</property>
+                <property name="title">Path</property>
               </object>
             </child>
             <child>
               <object class="GtkColumnViewColumn" id="column_parameters">
-                <property name="resizable">True</property>
-                <property name="title">Parameters</property>
-                <property name="expand">True</property>
-                <property name="fixed_width">300</property>
                 <property name="factory">
                   <object class="GtkBuilderListItemFactory">
-                    <property name="bytes">
-<![CDATA[
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <template class="GtkListItem">
-    <property name="child">
-      <object class="GtkInscription">
-        <binding name="text">
-          <lookup name="parameters" type="EfibootRowModel">
-            <lookup name="item">GtkListItem</lookup>
-          </lookup>
-        </binding>
-      </object>
-    </property>
-  </template>
-</interface>
-]]>
-                    </property>
+                    <property name="resource">/ovh/elinvention/Efiboots/gtk/column_parameters_factory.ui</property>
                   </object>
                 </property>
+                <property name="fixed-width">300</property>
+                <property name="resizable">True</property>
+                <property name="title">Parameters</property>
               </object>
             </child>
             <child>
@@ -204,7 +116,7 @@
                 <property name="icon-name">edit-copy-symbolic</property>
                 <property name="tooltip-text">Duplicate entry</property>
                 <signal name="clicked" handler="on_clicked_duplicate"/>
-              </object>>
+              </object>
             </child>
             <child>
               <object class="GtkButton" id="add">
@@ -258,11 +170,18 @@
             <signal name="clicked" handler="on_clicked_save"/>
           </object>
         </child>
-        <child type="start">
+        <child>
           <object class="GtkButton" id="reboot_button">
             <property name="icon-name">system-reboot-symbolic</property>
             <property name="tooltip-text">Save and reboot</property>
             <signal name="clicked" handler="on_clicked_reboot"/>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkButton" id="about_button">
+            <property name="icon-name">help-about-symbolic</property>
+            <property name="tooltip-text">About this app</property>
+            <signal name="clicked" handler="on_clicked_about"/>
           </object>
         </child>
       </object>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<gresources>
+  <gresource prefix="/ovh/elinvention/Efiboots">
+    <file preprocess="xml-stripblanks">gtk/main.ui</file>
+    <file preprocess="xml-stripblanks">gtk/column_current_factory.ui</file>
+    <file preprocess="xml-stripblanks">gtk/column_number_factory.ui</file>
+    <file preprocess="xml-stripblanks">gtk/column_label_factory.ui</file>
+    <file preprocess="xml-stripblanks">gtk/column_path_factory.ui</file>
+    <file preprocess="xml-stripblanks">gtk/column_parameters_factory.ui</file>
+    <file preprocess="xml-stripblanks">gtk/menus.ui</file>
+    <file preprocess="xml-stripblanks">gtk/about.ui</file>
+  </gresource>
+</gresources>

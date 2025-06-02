@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<!DOCTYPE cambalache-project SYSTEM "cambalache-project.dtd">
+<!-- Created with Cambalache 0.96.1 -->
+<cambalache-project version="0.96.0" target_tk="gtk-4.0">
+  <ui template-class="EfibootsMainWindow" filename="gtk/main.ui" sha256="45e1fd4b87c1b2cbf7373f6a6030864bc04fe6732ad7c522d6ef674f81c66dd3"/>
+  <ui filename="gtk/about.ui" sha256="c489a6ec9b1b50d95e77c3f96ffad22b7e686b664ee847ad5cc2ac2c39c199fa"/>
+</cambalache-project>

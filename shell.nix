@@ -34,8 +34,14 @@ in pkgs.mkShell rec {
 
     gobject-introspection
     gtk4
+    libadwaita
     glib
 
-    jetbrains.pycharm-professional
+    gnome-builder
   ];
+
+  shellHook = ''
+    #export GTK_THEME=Adwaita:dark # Or Adwaita for light theme
+    echo "Nix shell with Python, GTK4, and Libadwaita is active!"
+  '';
 }

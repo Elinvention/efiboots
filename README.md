@@ -1,4 +1,4 @@
-# EFI Boots
+# EFIBoots
 
 Manage EFI boot loader entries with this simple GUI.
 
