@@ -158,7 +158,7 @@ def auto_detect_esp():
 
 def execute_script_as_root(script):
     logging.info("Running command `pkexec sh -c %s`", script)
-    subprocess.run(["pkexec", "sh", "-c", script], check=True, capture_output=True)
+    subprocess_run_wrapper(["pkexec", "sh", "-c", script])
 
 
 class EfibootRowModel(GObject.Object):
