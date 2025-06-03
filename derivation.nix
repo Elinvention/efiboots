@@ -39,13 +39,13 @@ stdenv.mkDerivation (finalAttrs: {
     glib # needed for glib-compile-schemas
     gobject-introspection # need for gtk namespace to be available
     hicolor-icon-theme # needed for postinstall script
-    efibootmgr
-    util-linux
   ];
 
   buildInputs = [
     gtk4
     glib
+    efibootmgr
+    util-linux
   ];
 
   propagatedBuildInputs = python_deps;
