@@ -23,9 +23,9 @@ let
     pygobject3
   ];
 in
-stdenv.mkDerivation rec {
+stdenv.mkDerivation (finalAttrs: {
   name = "efiboots";
-  src = ./.;
+  src = lib.cleanSource ./.;
 
   nativeBuildInputs = [
     meson
@@ -44,14 +44,14 @@ stdenv.mkDerivation rec {
   ];
 
   buildInputs = [
-  	gtk4
-  	glib
+    gtk4
+    glib
   ];
 
   propagatedBuildInputs = python_deps;
 
   doCheck = true;
-  checkInputs = buildInputs;
+  checkInputs = finalAttrs.buildInputs;
 
   # ModuleNotFoundError: No module named 'gi' error
   # fix found from https://github.com/NixOS/nixpkgs/issues/343134#issuecomment-2453502399
@@ -63,10 +63,10 @@ stdenv.mkDerivation rec {
     wrapPythonPrograms
   '';
 
-  meta = with lib; {
+  meta = {
     description = " Manage EFI boot loader entries with this simple GUI";
     homepage = "https://github.com/Elinvention/efibootmgr-gui";
-    license = licenses.gpl3;
-    platforms = platforms.linux;
+    license = lib.licenses.gpl3;
+    platforms = lib.platforms.linux;
   };
-}
+})

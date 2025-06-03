@@ -92,6 +92,8 @@ ENV/
 .idea
 
 # nix
+result
+result-*
 result/
 .envrc
 .direnv
