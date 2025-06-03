@@ -34,6 +34,7 @@ stdenv.mkDerivation rec {
     gettext
     appstream
     wrapGAppsHook
+    python3.pkgs.wrapPython
     desktop-file-utils # needed for update-desktop-database
     glib # needed for glib-compile-schemas
     gobject-introspection # need for gtk namespace to be available
@@ -51,6 +52,16 @@ stdenv.mkDerivation rec {
 
   doCheck = true;
   checkInputs = buildInputs;
+
+  # ModuleNotFoundError: No module named 'gi' error
+  # fix found from https://github.com/NixOS/nixpkgs/issues/343134#issuecomment-2453502399
+  dontWrapGApps = true;
+  preFixup = ''
+    makeWrapperArgs+=("''${gappsWrapperArgs[@]}")
+  '';
+  postFixup = ''
+    wrapPythonPrograms
+  '';
 
   meta = with lib; {
     description = " Manage EFI boot loader entries with this simple GUI";
