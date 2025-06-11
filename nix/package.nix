@@ -19,7 +19,7 @@
 
 stdenv.mkDerivation (finalAttrs: {
   name = "efiboots";
-  src = lib.cleanSource ./.;
+  src = lib.cleanSource ./..;
 
   nativeBuildInputs = [
     meson
