@@ -4,13 +4,14 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.05";
     flake-utils.url = "github:numtide/flake-utils";
+    flake-compat.url = "github:edolstra/flake-compat";
   };
 
   outputs =
     {
-      self,
       nixpkgs,
       flake-utils,
+      ...
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -18,9 +19,9 @@
         pkgs = nixpkgs.legacyPackages.${system};
       in
       {
-        devShells.default = import ./shell.nix { inherit pkgs; };
+        devShells.default = import ./nix/shell.nix { inherit pkgs; };
         packages = rec {
-          efiboots = pkgs.callPackage ./derivation.nix { };
+          efiboots = pkgs.callPackage ./nix/package.nix { };
           default = efiboots;
         };
       }
