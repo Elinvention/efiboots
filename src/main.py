@@ -32,6 +32,7 @@ class EfibootsApplication(Gtk.Application):
             *args,
             application_id="ovh.elinvention.Efiboots",
             flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
+            resource_base_path="/ovh/elinvention/Efiboots",
             **kwargs
         )
         self.window = None
@@ -61,24 +62,17 @@ class EfibootsApplication(Gtk.Application):
         return base_path + '/' + relpath
 
     def do_startup(self):
-        print("do startup")
+        logging.debug("do startup")
         Gtk.Application.do_startup(self)
 
         action = Gio.SimpleAction.new("quit", None)
         action.connect("activate", self.on_quit)
         self.add_action(action)
 
-        resource = Gio.Resource.load("Efiboots.gresources.gresource")
-        Gio.resources_register(resource)
-        print("resource:", resource)
-        print(resource.get_info(self.resource_path("gtk/menus.ui"), Gio.ResourceLookupFlags.NONE))
+        logging.debug("resource base path: %s", self.get_resource_base_path())
         menus_builder = Gtk.Builder.new_from_resource(self.resource_path("gtk/menus.ui"))
-        print(menus_builder.get_object("app-menu"))
-        print(menus_builder.get_object("menubar"))
-        print("resource base path:", self.get_resource_base_path())
-        print(self.get_menu_by_id("app-menu"))
-        print(self.get_menu_by_id("menubar"))
 
+        logging.debug("app-menu: %s", self.get_menu_by_id("app-menu"))
         self.set_menubar(menus_builder.get_object("app-menu"))
 
     def do_activate(self):
