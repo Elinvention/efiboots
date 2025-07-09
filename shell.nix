@@ -42,6 +42,7 @@ mkShell {
     gnome-builder
 
     # required to compile with gnome builder
+    meson
     gettext
     desktop-file-utils
     appstream
