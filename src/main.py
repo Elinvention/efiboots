@@ -27,7 +27,7 @@ from gi.repository import Gtk, Gio, GLib
 
 
 class EfibootsApplication(Gtk.Application):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, version: str, *args, **kwargs):
         super().__init__(
             *args,
             application_id="ovh.elinvention.Efiboots",
@@ -35,6 +35,7 @@ class EfibootsApplication(Gtk.Application):
             resource_base_path="/ovh/elinvention/Efiboots",
             **kwargs
         )
+        self.APP_VERSION: str = version
         self.window = None
 
         self.add_main_option(
@@ -62,7 +63,7 @@ class EfibootsApplication(Gtk.Application):
         return base_path + '/' + relpath
 
     def do_startup(self):
-        logging.debug("do startup")
+        logging.info("Welcome to Efiboots %s", self.APP_VERSION)
         Gtk.Application.do_startup(self)
 
         action = Gio.SimpleAction.new("quit", None)
@@ -107,7 +108,8 @@ class EfibootsApplication(Gtk.Application):
 
 def main(version):
     logging.basicConfig(level=logging.DEBUG)
-    app = EfibootsApplication()
+
+    app = EfibootsApplication(version)
     app.run(sys.argv)
 
 if __name__ == "__main__":

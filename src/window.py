@@ -381,6 +381,7 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.APP_VERSION: str = kwargs['application'].APP_VERSION
         self.part: str | None = None
         self.disk: str | None = None
         self.model = EfibootsListStore(self)
@@ -460,6 +461,7 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         logging.debug("on_activate_about")
         about_builder = Gtk.Builder.new_from_resource("/ovh/elinvention/Efiboots/gtk/about.ui")
         about_dialog: Gtk.AboutDialog = about_builder.get_object("about_dialog")
+        about_dialog.set_version(self.APP_VERSION)
         about_dialog.set_transient_for(self)
         about_dialog.present()
 

@@ -10,7 +10,6 @@
     <property name="logo-icon-name">system-shutdown-symbolic</property>
     <property name="modal">True</property>
     <property name="program-name">Efiboots</property>
-    <property name="version">2.1.0</property>
     <property name="website">https://github.com/Elinvention/efiboots</property>
   </object>
 </interface>
