@@ -6,7 +6,7 @@
   efibootmgr,
   python3,
   util-linux,
-  wrapGAppsHook,
+  wrapGAppsHook3,
   desktop-file-utils,
   hicolor-icon-theme,
   meson,
@@ -15,17 +15,11 @@
   gettext,
   appstream,
   stdenv,
-  ...
 }:
 
-let
-  python_deps = with python3.pkgs; [
-    pygobject3
-  ];
-in
 stdenv.mkDerivation (finalAttrs: {
   name = "efiboots";
-  src = lib.cleanSource ./.;
+  src = lib.cleanSource ./..;
 
   nativeBuildInputs = [
     meson
@@ -33,7 +27,7 @@ stdenv.mkDerivation (finalAttrs: {
     pkg-config
     gettext
     appstream
-    wrapGAppsHook
+    wrapGAppsHook3
     python3.pkgs.wrapPython
     desktop-file-utils # needed for update-desktop-database
     glib # needed for glib-compile-schemas
@@ -44,11 +38,9 @@ stdenv.mkDerivation (finalAttrs: {
   buildInputs = [
     gtk4
     glib
-    efibootmgr
-    util-linux
   ];
 
-  propagatedBuildInputs = python_deps;
+  propagatedBuildInputs = [ python3.pkgs.pygobject3 ];
 
   doCheck = true;
   checkInputs = finalAttrs.buildInputs;
@@ -57,16 +49,25 @@ stdenv.mkDerivation (finalAttrs: {
   # fix found from https://github.com/NixOS/nixpkgs/issues/343134#issuecomment-2453502399
   dontWrapGApps = true;
   preFixup = ''
-    makeWrapperArgs+=("''${gappsWrapperArgs[@]}")
+    makeWrapperArgs+=( \
+      "''${gappsWrapperArgs[@]}" \
+      --prefix PATH : "${
+        lib.makeBinPath [
+          efibootmgr
+          util-linux
+        ]
+      }" \
+    )
   '';
   postFixup = ''
     wrapPythonPrograms
   '';
 
   meta = {
-    description = " Manage EFI boot loader entries with this simple GUI";
-    homepage = "https://github.com/Elinvention/efibootmgr-gui";
-    license = lib.licenses.gpl3;
+    description = "Manage EFI boot loader entries with this simple GUI";
+    homepage = "https://github.com/Elinvention/efiboots";
+    license = lib.licenses.gpl3Plus;
     platforms = lib.platforms.linux;
+    mainProgram = "efiboots";
   };
 })
