@@ -1,7 +1,7 @@
 {
     "id" : "ovh.elinvention.Efiboots",
     "runtime" : "org.gnome.Platform",
-    "runtime-version" : "master",
+    "runtime-version" : "50",
     "sdk" : "org.gnome.Sdk",
     "command" : "efiboots",
     "finish-args" : [
@@ -30,8 +30,8 @@
             "buildsystem" : "meson",
             "sources" : [
                 {
-                    "type" : "git",
-                    "url" : "file://."
+                    "type" : "dir",
+                    "path" : "."
                 }
             ],
             "config-opts" : [
