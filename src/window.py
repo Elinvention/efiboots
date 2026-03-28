@@ -484,6 +484,23 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
 
         self.add_css_class("devel")
 
+        # Connect signals for sensitivity
+        self.selection_model.connect("notify::selected", self.update_sensitivity)
+        self.model.connect("items-changed", self.update_sensitivity)
+        GLib.idle_add(self.update_sensitivity)
+
+    def update_sensitivity(self, *args):
+        selected_index = self.selection_model.get_selected()
+        n_items = self.model.get_n_items()
+        has_selection = selected_index != Gtk.INVALID_LIST_POSITION
+
+        self.remove.set_sensitive(has_selection)
+        self.edit.set_sensitive(has_selection)
+        self.duplicate.set_sensitive(has_selection)
+
+        self.up.set_sensitive(has_selection and selected_index > 0)
+        self.down.set_sensitive(has_selection and selected_index < n_items - 1)
+
     def on_activate_about(self, action, param):
         logging.debug("on_activate_about")
         about_builder = Gtk.Builder.new_from_resource("/ovh/elinvention/Efiboots/gtk/about.ui")
@@ -550,9 +567,6 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
             new_label, path, parameters = map(lambda e_field: entries[e_field].get_text(), fields)
             if response == Gtk.ResponseType.OK:
                 self.model.add(new_label, path, parameters)
-                self.remove.set_sensitive(True)
-                self.edit.set_sensitive(True)
-                self.duplicate.set_sensitive(True)
             add_dialog.close()
 
         dialog.connect('response', on_response)
@@ -608,9 +622,6 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         row: EfibootRowModel | None = self.selection_model.get_selected_item()
         if row:
             self.model.add(_("Copy of ") + row.name, row.path, row.parameters)
-            self.remove.set_sensitive(True)
-            self.edit.set_sensitive(True)
-            self.duplicate.set_sensitive(True)
 
     @Gtk.Template.Callback()
     def on_clicked_remove(self, button: Gtk.Button):
@@ -618,10 +629,7 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         index = self.selection_model.get_selected()
         logging.debug(f"Removing {row} at {index}")
         self.model.remove(index)
-        if len(self.model) == 0:
-            button.set_sensitive(False)
-            self.edit.set_sensitive(False)
-            self.duplicate.set_sensitive(False)
+
 
     @Gtk.Template.Callback()
     def on_clicked_save(self, button: Gtk.Button):
