@@ -81,7 +81,7 @@ class EfibootsApplication(Gtk.Application):
         if not self.window:
             # Windows are associated with the application
             # when the last one is closed the application shuts down
-            from efiboots.window import EfibootsMainWindow
+            from .window import EfibootsMainWindow
             self.window = EfibootsMainWindow(application=self)
 
         self.window.query_system(self.disk, self.part)

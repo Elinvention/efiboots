@@ -1,10 +1,9 @@
 import abc
 import logging
 import re
-import subprocess
-import os
 from dataclasses import dataclass
 
+from .utils import subprocess_run_wrapper
 
 @dataclass
 class ParsedEfibootmgrEntry:
@@ -24,19 +23,6 @@ class ParsedEfibootmgr:
     boot_next: str
     boot_current: str
     timeout: int
-
-
-def is_in_flatpak():
-    return "FLATPAK_ID" in os.environ
-
-
-def subprocess_run_wrapper(cmd):
-    if is_in_flatpak():
-        cmd = [ "flatpak-spawn", "--host" ] + cmd
-        logging.debug("Flatpak sandbox detected. Running: %s", ' '.join(cmd))
-    else:
-        logging.debug("Running: %s", ' '.join(cmd))
-    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
 
 
 class Efibootmgr(abc.ABC):

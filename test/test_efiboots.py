@@ -33,16 +33,16 @@ class TestParser(unittest.TestCase):
         self.assertDictEqual(value, {'num': '0000', 'active': True,
                                      'name': 'SATA1 : Samsung SSD 850 PRO 25',
                                      'path': '', 'parameters': ''})
-        key, value = efiboots.parse_efibootmgr_line('Boot0001* rEFInd Boot Manager\tHD(1,GPT,fda4f976-b250-4569-be80-0449804ab7c2,0x800,0x40000)/File(\EFI\refind\refind_x64.efi)')
+        key, value = efiboots.parse_efibootmgr_line(r'Boot0001* rEFInd Boot Manager	HD(1,GPT,fda4f976-b250-4569-be80-0449804ab7c2,0x800,0x40000)/File(\EFI\refind\refind_x64.efi)')
         self.assertEqual(key, 'entry')
         self.assertDictEqual(value, {'num': '0001', 'active': True,
                                      'name': 'rEFInd Boot Manager',
-                                     'path': '\\EFI\refind\refind_x64.efi',
+                                     'path': r'\EFI\refind\refind_x64.efi',
                                      'parameters': ''})
-        key, value = efiboots.parse_efibootmgr_line('Boot0004  linux-surface (reboot=pci)	HD(1,GPT,8b824cbb-3248-4aeb-8ca0-3073b5a41bc4,0x800,0x82000)/File(\\vmlinuz-linux-surface)r.o.o.t.=.L.A.B.E.L.=.r.o.o.t. .i.n.i.t.r.d.=.i.n.t.e.l.-.u.c.o.d.e...i.m.g. .i.n.i.t.r.d.=.i.n.i.t.r.a.m.f.s.-.l.i.n.u.x.-.s.u.r.f.a.c.e...i.m.g. .z.s.w.a.p...e.n.a.b.l.e.d.=.0. .r.e.b.o.o.t.=.p.c.i.')
+        key, value = efiboots.parse_efibootmgr_line(r'Boot0004  linux-surface (reboot=pci)	HD(1,GPT,8b824cbb-3248-4aeb-8ca0-3073b5a41bc4,0x800,0x82000)/File(\\vmlinuz-linux-surface)r.o.o.t.=.L.A.B.E.L.=.r.o.o.t. .i.n.i.t.r.d.=.i.n.t.e.l.-.u.c.o.d.e...i.m.g. .i.n.i.t.r.d.=.i.n.i.t.r.a.m.f.s.-.l.i.n.u.x.-.s.u.r.f.a.c.e...i.m.g. .z.s.w.a.p...e.n.a.b.l.e.d.=.0. .r.e.b.o.o.t.=.p.c.i.')
         self.assertEqual(key, 'entry')
         self.assertDictEqual(value, {'num': '0004', 'active': False, 'name': ' linux-surface (reboot=pci)',
-                                    'path': '\\vmlinuz-linux-surface',
+                                    'path': r'\\vmlinuz-linux-surface',
                                     'parameters': 'root=LABEL=root initrd=intel-ucode.img initrd=initramfs-linux-surface.img zswap.enabled=0 reboot=pci'})
 
     def test_efibootmgr_bootcurrent_parsing(self):

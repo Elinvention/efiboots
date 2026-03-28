@@ -8,7 +8,8 @@ import os
 from typing import Callable
 from gettext import gettext as _
 
-from efiboots.efibootmgr import Efibootmgr
+from .efibootmgr import Efibootmgr
+from .utils import auto_detect_esp, subprocess_run_wrapper
 
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gio, GObject, GLib
@@ -47,113 +48,6 @@ def error_dialog(transient_for: Gtk.Window, message: str, title: str, on_respons
     dialog.connect('response', on_response)
     dialog.show()
     return dialog
-
-
-many_esps_error_message = _("""
-This program detected more than one EFI System Partition on your system. You have to choose the right one.
-You can either mount your ESP on /boot/efi or pass the ESP block device via --disk and --part
-(e.g. --disk=/dev/sda --part=1).
-
-Choose wisely.
-""")
-
-device_regex = re.compile(r'^([a-z/]+[0-9a-z]*?)p?([0-9]+)$')
-
-
-def is_in_flatpak():
-    return "FLATPAK_ID" in os.environ
-
-
-def subprocess_run_wrapper(cmd):
-    if is_in_flatpak():
-        cmd = [ "flatpak-spawn", "--host" ] + cmd
-        logging.debug("Flatpak sandbox detected. Running: %s", ' '.join(cmd))
-    else:
-        logging.debug("Running: %s", ' '.join(cmd))
-    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
-
-
-def device_to_disk_part(device: str) -> tuple[str, str]:
-    try:
-        disk, part = device_regex.match(device).groups()
-        logging.debug("Device path %s split into %s and %s", device, disk, part)
-        return disk, part
-    except AttributeError:
-        raise ValueError("Could not match device " + device)
-
-
-def make_auto_detect_esp_with_findmnt(esp_mount_point) -> Callable:
-    def auto_detect_esp_with_findmnt() -> tuple[str, str] | None:
-        # findmnt --noheadings --output SOURCE --mountpoint /boot/efi
-        cmd = ["findmnt", "--noheadings", "--output", "SOURCE,FSTYPE", "--mountpoint", esp_mount_point]
-
-
-        try:
-            findmnt_output = subprocess_run_wrapper(cmd)
-        except (FileNotFoundError, subprocess.CalledProcessError) as e:
-            logging.warning("Could not detect ESP with findmnt: %s", e)
-            return
-        splitted = findmnt_output.strip().split()
-        for source, fstype in zip(splitted[::2], splitted[1::2]):
-            if fstype == 'vfat':
-                disk, part = device_to_disk_part(source)
-                return disk, part
-
-    return auto_detect_esp_with_findmnt
-
-
-def auto_detect_esp_with_lsblk() -> tuple[str, str] | None:
-    """
-    Finds the ESP by scanning the partition table. It should work with GPT (tested) and MBR (not tested).
-    This method doesn't require the ESP to be mounted.
-    :return: 2 strings that can be passed to efibootmgr --disk and --part argument.
-    """
-    esp_part_types = ('C12A7328-F81F-11D2-BA4B-00A0C93EC93B', 'EF')
-
-    # lsblk --noheadings --pairs --paths --output NAME,PARTTYPE
-    cmd = ['lsblk', '--noheadings', '--pairs', '--paths', '--output', 'NAME,PARTTYPE,FSTYPE']
-
-    logging.debug("Running: %s", ' '.join(cmd))
-    try:
-        res = subprocess_run_wrapper(cmd).strip()
-    except (FileNotFoundError, subprocess.CalledProcessError) as e:
-        logging.warning("Could not detect ESP with lsblk: %s", e)
-        return
-    regex = re.compile('^NAME="(.+)" PARTTYPE="(.+)" FSTYPE="(.+)"$', re.MULTILINE)
-    esps = []
-    for match in regex.finditer(res):
-        name, part_type, fs_type = match.groups()
-        if part_type.upper() in esp_part_types and fs_type == 'vfat':
-            esps.append(name)
-    logging.info(esps)
-    if len(esps) == 0:
-        return None
-    if len(esps) == 1:
-        source = esps[0]
-        disk, part = device_to_disk_part(source)
-    else:
-        logging.warning(many_esps_error_message)
-        def on_response(*args):
-            logging.debug("sys.exit(-1)")
-            sys.exit(-1)
-        error_dialog(None, many_esps_error_message + "\n" + _("Detected ESPs: ") + ', '.join(esps),
-                     _("More than one EFI System Partition detected!"), on_response)
-        return None
-    return disk, part
-
-
-def auto_detect_esp():
-    methods = (make_auto_detect_esp_with_findmnt('/efi'), make_auto_detect_esp_with_findmnt('/boot/efi'),
-               make_auto_detect_esp_with_findmnt('/boot'), auto_detect_esp_with_lsblk)
-    for find_esp_method in methods:
-        result = find_esp_method()
-        if not result:
-            continue
-        disk, part = result
-        logging.info("Detected ESP on disk %s part %s", disk, part)
-        return disk, part
-    logging.fatal("Can't auto-detect ESP! All methods failed.")
-    return None, None
 
 
 def execute_script_as_root(script):
@@ -514,16 +408,29 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
 
     def query_system(self, disk, part):
         if not (disk and part):
-            disk, part = auto_detect_esp()
+            def error_callback(esps):
+                many_esps_error_message = _("""
+    This program detected more than one EFI System Partition on your system. You have to choose the right one.
+    You can either mount your ESP on /boot/efi or pass the ESP block device via --disk and --part
+    (e.g. --disk=/dev/sda --part=1).
+
+    Choose wisely.
+    """)
+                def on_response(*args):
+                    sys.exit(-1)
+                error_dialog(self, many_esps_error_message + "\n" + _("Detected ESPs: ") + ', '.join(esps),
+                             _("More than one EFI System Partition detected!"), on_response)
+
+            disk, part = auto_detect_esp(error_callback=error_callback)
+
         if not (disk and part):
             error_dialog(self, _("Could not find an EFI System Partition. Ensure your ESP is mounted on /efi, "
                                "/boot/efi or /boot, that it has the correct partition type and vfat file system and that "
                                "either findmnt or lsblk commands are installed (should be by default on most distros)."),
-                         _("Can't auto-detect ESP!"), lambda *_: sys.exit(-1))
+                          _("Can't auto-detect ESP!"), lambda *_: sys.exit(-1))
             return
         self.disk, self.part = disk, part
         self.model.refresh()
-
     @Gtk.Template.Callback()
     def on_clicked_up(self, _: Gtk.Button):
         index = self.selection_model.get_selected()

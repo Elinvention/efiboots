@@ -3,7 +3,8 @@ moduledir = pkgdatadir / 'efiboots'
 gnome = import('gnome')
 
 gnome.compile_resources('efiboots',
-  'efiboots.gresource.xml',
+  'efiboots/efiboots.gresource.xml',
+  source_dir: 'efiboots',
   gresource_bundle: true,
   install: true,
   install_dir: pkgdatadir,
@@ -27,10 +28,12 @@ configure_file(
 )
 
 efiboots_sources = [
-  '__init__.py',
-  'efibootmgr.py',
-  'main.py',
-  'window.py',
+  'efiboots/__init__.py',
+  'efiboots/efibootmgr.py',
+  'efiboots/main.py',
+  'efiboots/utils.py',
+  'efiboots/window.py',
+  'efiboots/Efiboots.cmb',
 ]
 
 install_data(efiboots_sources, install_dir: moduledir)
