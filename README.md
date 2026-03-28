@@ -7,7 +7,7 @@ This is how it looks on my machine:
 
 You can:
 
-- reorder, add, delete, enable or disable boot entries
+- reorder, add, delete, edit, enable or disable boot entries
 - choose what to boot into at the next reboot (NextBoot)
 - set the time to wait before the first entry (or the NextBoot one) is selected
 - save your changes and reboot

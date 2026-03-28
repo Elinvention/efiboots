@@ -6,9 +6,9 @@
     "command" : "efiboots",
     "finish-args" : [
         "--socket=fallback-x11",
+        "--share=ipc",
         "--device=dri",
         "--socket=wayland",
-        "--filesystem=host",
         "--device=all",
         "--talk-name=org.freedesktop.Flatpak"
     ],
@@ -38,8 +38,5 @@
                 "--libdir=lib"
             ]
         }
-    ],
-    "build-options" : {
-        "env" : {        }
-    }
+    ]
 }

@@ -33,7 +33,6 @@ efiboots_sources = [
   'efiboots/main.py',
   'efiboots/utils.py',
   'efiboots/window.py',
-  'efiboots/Efiboots.cmb',
 ]
 
 install_data(efiboots_sources, install_dir: moduledir)

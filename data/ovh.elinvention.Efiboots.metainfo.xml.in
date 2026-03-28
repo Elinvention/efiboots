@@ -7,7 +7,12 @@
   <name>Efiboots</name>
   <summary>Manage EFI boot loader entries with this simple GUI</summary>
   <description>
-    <p>Manage EFI boot loader entries with this simple GUI</p>
+    <p>
+      Efiboots is a simple and intuitive graphical interface designed to manage your system's EFI boot loader entries.
+      It allows you to view, add, remove, and reorder boot entries without having to manually use command-line tools like efibootmgr.
+      You can use this tool a bit like bcdedit on Windows.
+      You can also set which entry to boot next and reboot your computer.
+    </p>
   </description>
 
   <developer id="ovh.elinvention">
@@ -25,7 +30,7 @@
   <!-- URLs of this type should point to a webpage where users can submit or modify translations of the upstream project -->
   <url type="translate">https://github.com/Elinvention/efiboots/blob/main/README.md</url>
   <!-- Should provide a web link to an online user's reference, a software manual or help page -->
-  <url type="help"><url type="faq">https://github.com/Elinvention/efiboots/blob/main/README.md</url></url>
+  <url type="help">https://github.com/Elinvention/efiboots/blob/main/README.md</url>
   <!-- URLs of this type should point to a webpage showing information on how to donate to the described software project -->
   <url type="donation">https://liberapay.com/Elinvention</url>
   <!-- This could for example be an HTTPS URL to an online form or a page describing how to contact the developer -->
@@ -40,6 +45,12 @@
   <!-- Use the OARS website (https://hughsie.github.io/oars/generate.html) to generate these and make sure to use oars-1.1 -->
   <content_rating type="oars-1.1" />
 
+  <categories>
+    <category>Settings</category>
+    <category>System</category>
+    <category>HardwareSettings</category>
+  </categories>
+
   <!-- Applications should set a brand color in both light and dark variants like so -->
   <branding>
     <color type="primary" scheme_preference="light">#ff00ff</color>
@@ -48,12 +59,8 @@
 
   <screenshots>
     <screenshot type="default">
-      <image>https://example.org/example1.png</image>
-      <caption>A caption</caption>
-    </screenshot>
-    <screenshot>
-      <image>https://example.org/example2.png</image>
-      <caption>A caption</caption>
+      <image>https://raw.githubusercontent.com/Elinvention/efiboots/main/screenshot.png</image>
+      <caption>The main window showing boot entries</caption>
     </screenshot>
   </screenshots>
 
