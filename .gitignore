@@ -100,3 +100,7 @@ result/
 
 # Gtk/GNOME
 *.gresource
+
+# flatpak
+.flatpak-builder/
+repo/
