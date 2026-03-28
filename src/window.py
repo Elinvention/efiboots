@@ -320,6 +320,20 @@ class EfibootsListStore(Gio.ListStore):
         self.append(row)
         self.boot_add[new_num] = (label, path, parameters)
 
+    def modify(self, position: int, label: str, path: str, parameters: str):
+        item: EfibootRowModel | None = self.get_item(position)
+        if item is not None:
+            item.name = label
+            item.path = path
+            item.parameters = parameters
+            num: str = item.num
+            if num.startswith('NEW'):
+                self.boot_add[num] = (label, path, parameters)
+            else:
+                self.edit_name.add(num)
+                self.edit_loader.add(num)
+                self.edit_parameters.add(num)
+
     def remove(self, position: int):
         item: EfibootRowModel | None = self.get_item(position)
         if item is not None:
@@ -329,6 +343,10 @@ class EfibootsListStore(Gio.ListStore):
             else:
                 self.boot_remove.add(num)
                 self.boot_order.remove(num)
+                # Also remove from edit sets if present
+                self.edit_name.discard(num)
+                self.edit_loader.discard(num)
+                self.edit_parameters.discard(num)
             super().remove(position)
 
     def pending_changes(self):
@@ -336,7 +354,8 @@ class EfibootsListStore(Gio.ListStore):
         return (self.boot_next_initial != self.boot_next or
                 self.boot_order_initial != self.boot_order or self.boot_add or
                 self.boot_remove or self.boot_active or self.boot_inactive
-                or self.timeout != self.timeout_initial
+                or self.timeout != self.timeout_initial or
+                self.edit_name or self.edit_loader or self.edit_parameters
                 )
 
     def to_script(self, disk, part, reboot):
@@ -346,6 +365,12 @@ class EfibootsListStore(Gio.ListStore):
             script += f'efibootmgr {esp} --delete-bootnum --bootnum {entry}\n'
         for label, loader, params in self.boot_add.values():
             script += f'efibootmgr {esp} --create --label \'{label}\' --loader \'{loader}\' --unicode \'{params}\'\n'
+        for entry_num in (self.edit_name | self.edit_loader | self.edit_parameters):
+            if entry_num.startswith('NEW') or entry_num in self.boot_remove:
+                continue
+            row_idx = self.index_num(entry_num)
+            row = self.get_item(row_idx)
+            script += f'efibootmgr {esp} --bootnum {entry_num} --label \'{row.name}\' --loader \'{row.path}\' --unicode \'{row.parameters}\'\n'
         if self.boot_order != self.boot_order_initial:
             script += f'efibootmgr {esp} --bootorder {",".join(self.boot_order)}\n'
         if self.boot_next_initial != self.boot_next:
@@ -374,6 +399,8 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
 
     up: Gtk.Button = Gtk.Template.Child()
     down: Gtk.Button = Gtk.Template.Child()
+    duplicate: Gtk.Button = Gtk.Template.Child()
+    edit: Gtk.Button = Gtk.Template.Child()
     add: Gtk.Button = Gtk.Template.Child()
     remove: Gtk.Button = Gtk.Template.Child()
 
@@ -524,7 +551,54 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
             if response == Gtk.ResponseType.OK:
                 self.model.add(new_label, path, parameters)
                 self.remove.set_sensitive(True)
+                self.edit.set_sensitive(True)
+                self.duplicate.set_sensitive(True)
             add_dialog.close()
+
+        dialog.connect('response', on_response)
+        dialog.show()
+
+    @Gtk.Template.Callback()
+    def on_clicked_edit(self, __: Gtk.Button):
+        row: EfibootRowModel | None = self.selection_model.get_selected_item()
+        index = self.selection_model.get_selected()
+        if not row:
+            return
+
+        dialog = Gtk.MessageDialog(transient_for=self, modal=True,
+                                   destroy_with_parent=True, message_type=Gtk.MessageType.QUESTION,
+                                   buttons=Gtk.ButtonsType.OK_CANCEL,
+                                   text=_("Edit EFI loader entry details."))
+
+        dialog.set_title(_("Edit EFI loader"))
+        yes_button = dialog.get_widget_for_response(Gtk.ResponseType.OK)
+        dialog_box = dialog.get_content_area()
+
+        fields = ["label", "path", "parameters"]
+        entries = {}
+        grid = Gtk.Grid(row_spacing=2, column_spacing=8, halign=Gtk.Align.CENTER)
+        for i, field in enumerate(fields):
+            entries[field] = Gtk.Entry()
+            entries[field].set_size_request(400, 0)
+            if field == "label":
+                entries[field].set_text(row.name)
+            elif field == "path":
+                entries[field].set_text(row.path)
+            elif field == "parameters":
+                entries[field].set_text(row.parameters)
+
+            label = Gtk.Label(label=field.capitalize() + ":")
+            grid.attach(label, 0, i, 1, 1)
+            grid.attach(entries[field], 1, i, 1, 1)
+
+        dialog_box.append(grid)
+        entries["label"].connect('changed', lambda l: yes_button.set_sensitive(l.get_text() != ''))
+
+        def on_response(edit_dialog, response):
+            new_label, path, parameters = map(lambda e_field: entries[e_field].get_text(), fields)
+            if response == Gtk.ResponseType.OK:
+                self.model.modify(index, new_label, path, parameters)
+            edit_dialog.close()
 
         dialog.connect('response', on_response)
         dialog.show()
@@ -534,6 +608,9 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         row: EfibootRowModel | None = self.selection_model.get_selected_item()
         if row:
             self.model.add(_("Copy of ") + row.name, row.path, row.parameters)
+            self.remove.set_sensitive(True)
+            self.edit.set_sensitive(True)
+            self.duplicate.set_sensitive(True)
 
     @Gtk.Template.Callback()
     def on_clicked_remove(self, button: Gtk.Button):
@@ -543,6 +620,8 @@ class EfibootsMainWindow(Gtk.ApplicationWindow):
         self.model.remove(index)
         if len(self.model) == 0:
             button.set_sensitive(False)
+            self.edit.set_sensitive(False)
+            self.duplicate.set_sensitive(False)
 
     @Gtk.Template.Callback()
     def on_clicked_save(self, button: Gtk.Button):

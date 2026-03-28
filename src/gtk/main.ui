@@ -119,6 +119,13 @@
               </object>
             </child>
             <child>
+              <object class="GtkButton" id="edit">
+                <property name="icon-name">document-edit-symbolic</property>
+                <property name="tooltip-text">Edit entry</property>
+                <signal name="clicked" handler="on_clicked_edit"/>
+              </object>
+            </child>
+            <child>
               <object class="GtkButton" id="add">
                 <property name="icon-name">list-add-symbolic</property>
                 <property name="tooltip-text">Add new entry</property>
